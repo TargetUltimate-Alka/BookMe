@@ -1,0 +1,70 @@
+﻿version: "3.9"
+
+services:
+  auth-service:
+    build: ./services/auth-service
+    ports:
+      - "3001:3000"
+    env_file: ./services/auth-service/.env.example
+    depends_on:
+      - auth-db
+
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+
+  vendor-service:
+    build: ./services/vendor-service
+    ports:
+      - "3002:3000"
+    env_file: ./services/vendor-service/.env.example
+    depends_on:
+      - vendor-db
+
+  vendor-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vendor_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+
+  event-booking-service:
+    build: ./services/event-booking-service
+    ports:
+      - "3003:3000"
+    env_file: ./services/event-booking-service/.env.example
+    depends_on:
+      - event-booking-db
+
+  event-booking-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: event_booking_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5435:5432"
+
+  payment-feedback-service:
+    build: ./services/payment-feedback-service
+    ports:
+      - "3004:3000"
+    env_file: ./services/payment-feedback-service/.env.example
+    depends_on:
+      - payment-feedback-db
+
+  payment-feedback-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: payment_feedback_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5436:5432"

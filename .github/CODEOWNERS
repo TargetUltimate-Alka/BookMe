@@ -1,0 +1,14 @@
+﻿/services/auth-service/                                 @personA
+/services/vendor-service/src/modules/vendor/             @personB
+/services/vendor-service/src/modules/availability/       @personB
+/services/event-booking-service/src/modules/event/       @personC
+/services/event-booking-service/src/modules/booking/     @personC
+/services/payment-feedback-service/src/modules/payment/    @personD
+/services/payment-feedback-service/src/modules/review/     @personD
+/services/payment-feedback-service/src/modules/complaint/  @personD
+/frontend/src/features/auth/                             @personA
+/frontend/src/features/vendor/                           @personB
+/frontend/src/features/events-booking/                   @personC
+/frontend/src/features/payments-reviews/                 @personD
+/contracts/                                               @personA @personB @personC @personD
+/docker-compose.yml                                       @personA @personB @personC @personD

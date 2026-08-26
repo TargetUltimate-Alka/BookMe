@@ -1,0 +1,16 @@
+﻿{
+  "name": "auth-service",
+  "version": "1.0.0",
+  "description": "BookMe auth-service - owned by Person A",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5",
+    "dotenv": "^16.4.5"
+  }
+}
