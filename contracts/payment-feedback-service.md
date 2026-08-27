@@ -92,6 +92,10 @@ average on each new review and calls
 
 ## Complaints
 
+### GET /complaints?status=open
+- Response (200): `[ { "id": "cmp_001", "subject": "Late delivery", "status": "open", "bookingId": "bkg_555" } ]`
+- Errors: 401/403 (admin only)
+
 ### POST /complaints
 - Request:
   ```json
