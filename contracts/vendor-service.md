@@ -31,12 +31,17 @@ passes here).
     "userId": "usr_123",
     "businessName": "Sunset Catering",
     "category": "catering",
-    "verified": false,
+    "verified": true,
     "rating": null,
     "createdAt": "2026-08-26T10:00:00Z"
   }
   ```
 - Errors: 400, 409 (vendor profile already exists for this userId)
+
+> **V1 note:** vendors are auto-verified on creation (`verified: true` by
+> default). No verification workflow in V1 — this comes back as an
+> admin-only `POST /vendors/:id/verify` endpoint when admin-service lands
+> in V2.
 
 ### GET /vendors/:id
 - Response (200): full vendor object (same shape as POST response, plus `description`, `location`)
@@ -76,16 +81,6 @@ keep the vendor's displayed rating in sync.
 ### DELETE /vendors/:id/packages/:packageId
 - Response (204)
 - Errors: 401, 404
-
-### POST /vendors/:id/verify
-Admin-only. Marks a vendor as verified.
-- Request:
-  ```json
-  { "verified": true }
-  ```
-- Response (200): updated vendor object
-- Errors: 401/403 (not admin), 404
-
 ---
 
 ### POST /vendors/:id/services
@@ -114,19 +109,6 @@ Add a bookable service/offering under this vendor.
 - Errors: 401 (not the owner), 404
 
 ---
-### POST /vendors
-...
-- Response (201):
-```json
-  {
-    "id": "vnd_456",
-    ...
-    "verified": true,
-  ...
-```
-> **V1 note:** vendors are auto-verified on creation (`verified: true`
-> by default). No verification workflow in V1 — this gets added back as
-> `POST /vendors/:id/verify` (admin-only) when admin-service lands in V2.
 
 ### POST /vendors/:id/packages
 Bundles of services at a package price (optional grouping on top of services).
@@ -138,6 +120,15 @@ Bundles of services at a package price (optional grouping on top of services).
 
 ### GET /vendors/:id/packages
 - Response (200): `[ { "id": "pkg_111", "name": "Gold Wedding Package", "price": 120000 } ]`
+
+  ### PATCH /vendors/:id/packages/:packageId
+- Request: any subset of `{ name, serviceIds, price }`
+- Response (200): updated package object
+- Errors: 401 (not the owner), 404
+
+### DELETE /vendors/:id/packages/:packageId
+- Response (204)
+- Errors: 401 (not the owner), 404
 
 ---
 
