@@ -42,6 +42,10 @@ List the logged-in customer's events.
 - Response (200): full event object
 - Errors: 401 (not the owner), 404
 
+  ### DELETE /events/:id/checklist/:itemId
+- Response (204)
+- Errors: 401 (not the event owner), 404
+
 ### PATCH /events/:id
 - Request: any subset of `{ name, date, budget, guestCount }`
 - Response (200): updated event
@@ -68,11 +72,29 @@ Aggregate view: spend so far vs budget, booking statuses, checklist progress.
 - Response (200): updated checklist item
 
 ---
+## vendor service (added later )
 
+### GET /vendors/:vendorId/bookings
+Used by the vendor dashboard to show incoming booking requests, so a vendor
+can accept/reject them.
+- Query params: `?status=pending`
+- Response (200):
+```json
+  [ { "id": "bkg_555", "eventId": "evt_001", "customerName": "Jane Doe", "date": "2026-12-05", "status": "pending", "amount": 120000 } ]
+```
+- Errors: 401 (not the vendor owner)
 ## Bookings
+
 A booking links one event to one vendor package/service. This service stores
 only IDs + a denormalized snapshot (vendor name, price) — see the "snapshot"
 note below for why.
+
+> **Note on availability locking:** when a booking moves to `confirmed` via
+> `PATCH /bookings/:id/status`, this service automatically calls
+> `POST /vendors/:id/availability/block` on vendor-service so the date gets
+> locked. The vendor does not need to block it manually. (Team: confirm
+> this is the agreed flow — the alternative is the vendor blocking
+> manually, which is more error-prone for a demo.)
 
 ### POST /bookings
 - Request:
