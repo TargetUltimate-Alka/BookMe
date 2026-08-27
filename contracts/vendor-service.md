@@ -59,6 +59,24 @@ Search/list, used by customers browsing.
 - Response (200): updated vendor object
 - Errors: 401 (not the owner), 404
 
+### PATCH /internal/vendors/:id/rating
+Internal only — called by payment-feedback-service after a new review to
+keep the vendor's displayed rating in sync.
+- Request:
+```json
+  { "rating": 4.6 }
+```
+- Response (200): `{ "id": "vnd_456", "rating": 4.6 }`
+  
+### PATCH /vendors/:id/packages/:packageId
+- Request: any subset of `{ name, serviceIds, price }`
+- Response (200): updated package object
+- Errors: 401 (not the owner), 404
+
+### DELETE /vendors/:id/packages/:packageId
+- Response (204)
+- Errors: 401, 404
+
 ### POST /vendors/:id/verify
 Admin-only. Marks a vendor as verified.
 - Request:
@@ -90,6 +108,10 @@ Add a bookable service/offering under this vendor.
 
 ### DELETE /vendors/:id/services/:serviceId
 - Response (204)
+
+### DELETE /vendors/:id/availability/block/:blockId
+- Response (204)
+- Errors: 401 (not the owner), 404
 
 ---
 
