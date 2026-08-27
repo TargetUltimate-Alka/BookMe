@@ -13,6 +13,11 @@ Base path: `/api/auth`
 ### POST /register
 Create a new user. `role` determines whether a matching vendor profile needs
 to be created later via vendor-service (auth-service does NOT create it).
+> **Security note (V1):** `POST /register` only accepts `role: "customer"`
+> or `"vendor"`. Admin is out of scope for V1 — no admin login, no admin
+> role, no admin service. Endpoints marked "Admin-only" elsewhere in the
+> contracts are unprotected/unused in V1 and will be gated once
+> admin-service is added in V2.
 
 - Request:
   ```json
