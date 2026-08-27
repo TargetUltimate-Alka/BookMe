@@ -1,14 +1,14 @@
-﻿/services/auth-service/                                 @personA
-/services/vendor-service/src/modules/vendor/             @personB
-/services/vendor-service/src/modules/availability/       @personB
-/services/event-booking-service/src/modules/event/       @personC
-/services/event-booking-service/src/modules/booking/     @personC
-/services/payment-feedback-service/src/modules/payment/    @personD
-/services/payment-feedback-service/src/modules/review/     @personD
-/services/payment-feedback-service/src/modules/complaint/  @personD
-/frontend/src/features/auth/                             @personA
-/frontend/src/features/vendor/                           @personB
-/frontend/src/features/events-booking/                   @personC
-/frontend/src/features/payments-reviews/                 @personD
-/contracts/                                               @personA @personB @personC @personD
-/docker-compose.yml                                       @personA @personB @personC @personD
+﻿/services/auth-service/                                 @Radhika-verma1
+/services/vendor-service/src/modules/vendor/             @Nandinikanaujiya
+/services/vendor-service/src/modules/availability/       @Nandinikanaujiya
+/services/event-booking-service/src/modules/event/       @TargetUltimate-Alka
+/services/event-booking-service/src/modules/booking/     @TargetUltimate-Alka
+/services/payment-feedback-service/src/modules/payment/    @mishralok794
+/services/payment-feedback-service/src/modules/review/     @mishralok794
+/services/payment-feedback-service/src/modules/complaint/  @mishralok794
+/frontend/src/features/auth/                             @Radhika-verma1
+/frontend/src/features/vendor/                           @Nandinikanaujiya
+/frontend/src/features/events-booking/                   @TargetUltimate-Alka
+/frontend/src/features/payments-reviews/                 @mishralok794
+/contracts/                                               @Radhika-verma1 @Nandinikanaujiya @TargetUltimate-Alka @mishralok794
+/docker-compose.yml                                       @Radhika-verma1 @Nandinikanaujiya @TargetUltimate-Alka @mishralok794
