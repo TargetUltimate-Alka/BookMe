@@ -114,6 +114,19 @@ Add a bookable service/offering under this vendor.
 - Errors: 401 (not the owner), 404
 
 ---
+### POST /vendors
+...
+- Response (201):
+```json
+  {
+    "id": "vnd_456",
+    ...
+    "verified": true,
+  ...
+```
+> **V1 note:** vendors are auto-verified on creation (`verified: true`
+> by default). No verification workflow in V1 — this gets added back as
+> `POST /vendors/:id/verify` (admin-only) when admin-service lands in V2.
 
 ### POST /vendors/:id/packages
 Bundles of services at a package price (optional grouping on top of services).
