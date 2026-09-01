@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BookMe — Vendor Operating System & Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+    }
+    .dark .glass {
+      background: rgba(17, 24, 39, 0.85);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen antialiased p-4 md:p-8">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Top Header & Live Mode Switcher -->
+    <header class="bg-slate-800/80 border border-slate-700/70 rounded-3xl p-6 shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <div class="relative group cursor-pointer" onclick="document.getElementById('logo-upload').click()">
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-orange-500/20 overflow-hidden" id="logo-preview-container">
+            <span id="logo-text">SR</span>
+            <img id="logo-preview" class="w-full h-full object-cover hidden" alt="Logo">
+          </div>
+          <div class="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold transition-all">
+            Change
+          </div>
+          <input type="file" id="logo-upload" class="hidden" accept="image/*" onchange="previewLogo(event)">
+        </div>
+        
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-xl md:text-2xl font-extrabold tracking-tight text-white" id="display-business-name">Sunset Royal Caterers & Decor</h1>
+            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Verified Pro
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-2">
+            <span>📍 SG Highway, Ahmedabad</span> • 
+            <span>🍽️ Premium Catering & Events</span> • 
+            <span class="text-amber-400 font-bold">★ 4.9 (42 Reviews)</span> •
+            <span class="text-indigo-400 font-semibold">⚡ AI Smart-Matched</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="flex items-center gap-3">
+        <div class="bg-slate-700/60 border border-slate-600/50 rounded-2xl px-4 py-2.5 text-right">
+          <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Estimated Payout</div>
+          <div class="text-lg font-extrabold text-emerald-400">₹3,40,000</div>
+        </div>
+        <button onclick="switchTab('customerView')" class="bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-lg shadow-indigo-500/25 flex items-center gap-2 transition-all">
+          <span>👁️</span> Live Marketplace Preview
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs Bar -->
+    <nav class="flex space-x-2 border-b border-slate-800 pb-3 overflow-x-auto custom-scroll text-sm">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-2 rounded-xl font-bold bg-indigo-600 text-white shadow-md flex items-center gap-2 transition-all">
+        📊 Overview & Requests
+      </button>
+      <button onclick="switchTab('gallery')" id="tab-gallery" class="px-4 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all">
+        📸 Photo Gallery & Media
+      </button>
+      <button onclick="switchTab('packages')" id="tab-packages" class="px-4 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all">
+        🍱 Custom Services & Packages
+      </button>
+      <button onclick="switchTab('calendar')" id="tab-calendar" class="px-4 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all">
+        🗓️ Booking Calendar & Slots
+      </button>
+      <button onclick="switchTab('customerView')" id="tab-customerView" class="px-4 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all">
+        👀 Customer's Booking View
+      </button>
+    </nav>
+
+    <!-- TAB 1: OVERVIEW & LIVE REQUESTS -->
+    <section id="content-dashboard" class="space-y-6">
+      
+      <!-- Key Metric Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Confirmed Events</span>
+          <div class="text-2xl font-black text-white mt-1">12 Bookings</div>
+          <div class="text-xs text-emerald-400 font-bold mt-1">↑ +3 this month</div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Avg Response Time</span>
+          <div class="text-2xl font-black text-indigo-400 mt-1">12 mins</div>
+          <div class="text-xs text-slate-400 mt-1">⚡ Super Fast Badge</div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Profile Views</span>
+          <div class="text-2xl font-black text-violet-400 mt-1">2,850</div>
+          <div class="text-xs text-emerald-400 font-bold mt-1">↑ +24% from search</div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-2xl">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Client Satisfaction</span>
+          <div class="text-2xl font-black text-amber-400 mt-1">99.4%</div>
+          <div class="text-xs text-slate-400 mt-1">Based on 42 reviews</div>
+        </div>
+      </div>
+
+      <!-- Live Booking Requests Feed -->
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span> Incoming Booking Inquiries
+            </h3>
+            <p class="text-xs text-slate-400">Review client requests and lock dates on your calendar.</p>
+          </div>
+          <span class="text-xs bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-bold border border-indigo-500/20">2 Pending Inquiries</span>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Item 1 -->
+          <div id="booking-item-1" class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 hover:border-indigo-500/50 transition-all">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-white">Grand Wedding Reception (450 Guests)</span>
+                <span class="bg-indigo-500/20 text-indigo-300 text-xs px-2.5 py-0.5 rounded-md font-semibold">Dec 18, 2026</span>
+                <span class="text-xs text-slate-400">📍 Karnavati Club, Ahmedabad</span>
+              </div>
+              <p class="text-xs text-slate-400">Client: <strong class="text-slate-200">Kavya & Rohan Patel</strong> • Selected: <span class="text-amber-400 font-semibold">Gold Wedding Feast + Live Chaat</span></p>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="text-sm font-extrabold text-emerald-400">₹1,45,000</div>
+                <div class="text-[10px] text-slate-400">100% Escrow Protected</div>
+              </div>
+              <button onclick="acceptBooking('booking-item-1')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md transition-all">
+                Accept Booking
+              </button>
+              <button onclick="declineBooking('booking-item-1')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700">
+                Decline
+              </button>
+            </div>
+          </div>
+
+          <!-- Item 2 -->
+          <div id="booking-item-2" class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 hover:border-indigo-500/50 transition-all">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-white">Corporate Annual Leadership Summit (150 Pax)</span>
+                <span class="bg-purple-500/20 text-purple-300 text-xs px-2.5 py-0.5 rounded-md font-semibold">Nov 05, 2026</span>
+                <span class="text-xs text-slate-400">📍 GIFT City Tech Tower</span>
+              </div>
+              <p class="text-xs text-slate-400">Client: <strong class="text-slate-200">FinTech Hub India</strong> • Selected: <span class="text-amber-400 font-semibold">Executive High-Tea & Multi-Cuisine Buffet</span></p>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="text-sm font-extrabold text-emerald-400">₹85,000</div>
+                <div class="text-[10px] text-slate-400">100% Escrow Protected</div>
+              </div>
+              <button onclick="acceptBooking('booking-item-2')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md transition-all">
+                Accept Booking
+              </button>
+              <button onclick="declineBooking('booking-item-2')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700">
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PHOTO GALLERY & MEDIA UPLOADER -->
+    <section id="content-gallery" class="hidden space-y-6">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-6 space-y-6">
+        
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-white">📸 Portfolio & Event Media Gallery</h3>
+            <p class="text-xs text-slate-400">High-resolution event photos build trust and get you up to 3x more bookings on BookMe.</p>
+          </div>
+          <button onclick="document.getElementById('gallery-file-input').click()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
+            <span>+</span> Upload New Photos
+          </button>
+          <input type="file" id="gallery-file-input" class="hidden" multiple accept="image/*" onchange="handleImageUpload(event)">
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div onclick="document.getElementById('gallery-file-input').click()" class="border-2 border-dashed border-slate-600 hover:border-indigo-500/80 bg-slate-900/40 rounded-2xl p-8 text-center cursor-pointer transition-all">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-2xl mb-2">
+            ☁️
+          </div>
+          <div class="text-sm font-bold text-white">Click or Drag & Drop Event Photos Here</div>
+          <div class="text-xs text-slate-400 mt-1">Supports JPG, PNG, WEBP up to 10MB each (Stage, Food Counters, Decors, Live Events)</div>
+        </div>
+
+        <!-- Gallery Grid -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Gallery Photos (<span id="photo-count">6</span>)</h4>
+            <span class="text-xs text-slate-400">⭐ Top photo is your search Cover Photo</span>
+          </div>
+
+          <div id="gallery-container" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            
+            <!-- Photo 1 (Cover) -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=600&q=80" alt="Buffet Setup" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">
+                ★ COVER PHOTO
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Luxury Royal Buffet</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+            <!-- Photo 2 -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80" alt="Wedding Stage" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                Stage & Ambience
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Floral Stage Setup</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+            <!-- Photo 3 -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80" alt="Mocktails" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                Beverage Bar
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Smoked Mocktail Counter</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+            <!-- Photo 4 -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80" alt="Live Dishes" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                Live Kitchen
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Tandoori & Grills</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+            <!-- Photo 5 -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=600&q=80" alt="Desserts" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                Desserts
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Gourmet Sweets & Pastries</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+            <!-- Photo 6 -->
+            <div class="relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video">
+              <img src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=600&q=80" alt="Seating" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+              <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                VIP Banquets
+              </div>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+                <span class="text-xs text-white font-semibold">Round Table Banquet</span>
+                <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: CUSTOM PACKAGES & SERVICES BUILDER -->
+    <section id="content-packages" class="hidden space-y-6">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-6 space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white">🍱 Custom Offerings & Bundled Packages</h3>
+            <p class="text-xs text-slate-400">Create modular service bundles that customers can directly customize and book.</p>
+          </div>
+          <div class="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-2xl text-right">
+            <span class="text-[10px] text-slate-400 uppercase font-semibold">Live Bundle Price</span>
+            <div id="dynamic-package-price" class="text-xl font-black text-emerald-400">₹45,000</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex gap-3 items-start cursor-pointer hover:border-indigo-500/50">
+            <input type="checkbox" checked disabled class="mt-1 w-4 h-4 rounded accent-indigo-600">
+            <div class="space-y-1">
+              <div class="text-sm font-bold text-white">Signature 5-Course Royal Wedding Buffet</div>
+              <p class="text-xs text-slate-400">3 Starters, 5 Main Course, Dal Makhani, Assorted Breads & 2 Warm Desserts</p>
+              <div class="text-xs font-bold text-emerald-400">₹45,000 (Base Price)</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex gap-3 items-start cursor-pointer hover:border-indigo-500/50" onclick="togglePackageAddon('addon-chaat', 15000)">
+            <input type="checkbox" id="addon-chaat" class="mt-1 w-4 h-4 rounded accent-indigo-600" onchange="event.stopPropagation(); updateBundleTotal()">
+            <div class="space-y-1">
+              <div class="text-sm font-bold text-white">Live Delhi Chaat & Street Food Counter</div>
+              <p class="text-xs text-slate-400">Live Pani Puri, Dahi Bhalla, Sev Puri & Aloo Tikki with 2 Dedicated Chefs</p>
+              <div class="text-xs font-bold text-emerald-400">+ ₹15,000</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex gap-3 items-start cursor-pointer hover:border-indigo-500/50" onclick="togglePackageAddon('addon-mocktail', 20000)">
+            <input type="checkbox" id="addon-mocktail" class="mt-1 w-4 h-4 rounded accent-indigo-600" onchange="event.stopPropagation(); updateBundleTotal()">
+            <div class="space-y-1">
+              <div class="text-sm font-bold text-white">Artisanal Mocktail & Smoked Drink Bar</div>
+              <p class="text-xs text-slate-400">Smoked Rosemary Mojito, Kiwi Crush, Fresh Fruit Juices & Flair Bartender</p>
+              <div class="text-xs font-bold text-emerald-400">+ ₹20,000</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 flex gap-3 items-start cursor-pointer hover:border-indigo-500/50" onclick="togglePackageAddon('addon-chef', 25000)">
+            <input type="checkbox" id="addon-chef" class="mt-1 w-4 h-4 rounded accent-indigo-600" onchange="event.stopPropagation(); updateBundleTotal()">
+            <div class="space-y-1">
+              <div class="text-sm font-bold text-white">VIP Executive Master Chef Plating Service</div>
+              <p class="text-xs text-slate-400">Exclusive presentation, gold leaf garnishing & dedicated VIP guest service</p>
+              <div class="text-xs font-bold text-emerald-400">+ ₹25,000</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button onclick="showNotify('Package saved and published to BookMe marketplace!')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-lg transition-all">
+            💾 Save & Publish Custom Package
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CALENDAR & SLOTS -->
+    <section id="content-calendar" class="hidden space-y-6">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-6 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-white">🗓️ September & October 2026 Calendar</h3>
+            <p class="text-xs text-slate-400">Click any date to mark it as Available (Green), Blocked (Red), or view Bookings.</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs font-semibold">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-md bg-emerald-500"></span> Available</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-md bg-red-500"></span> Blocked / Off</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-md bg-indigo-500"></span> Confirmed BookMe Event</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-7 gap-2.5 text-center text-sm font-bold">
+          <div class="text-slate-400 text-xs py-1">Mon</div>
+          <div class="text-slate-400 text-xs py-1">Tue</div>
+          <div class="text-slate-400 text-xs py-1">Wed</div>
+          <div class="text-slate-400 text-xs py-1">Thu</div>
+          <div class="text-slate-400 text-xs py-1">Fri</div>
+          <div class="text-slate-400 text-xs py-1">Sat</div>
+          <div class="text-slate-400 text-xs py-1">Sun</div>
+
+          <div class="p-3.5 rounded-2xl bg-slate-800/30 text-slate-600">31</div>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:scale-105 transition-all">1</button>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:scale-105 transition-all">2</button>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:scale-105 transition-all">3</button>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 hover:scale-105 transition-all">4 💍</button>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 hover:scale-105 transition-all">5 🚫</button>
+          <button onclick="toggleCalendarDate(this)" class="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:scale-105 transition-all">6</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: CUSTOMER'S MARKETPLACE PREVIEW -->
+    <section id="content-customerView" class="hidden space-y-6">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-6 space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white">👀 Live Customer Discovery View</h3>
+            <p class="text-xs text-slate-400">This is exactly how event planners and brides/grooms see your profile on BookMe search.</p>
+          </div>
+          <span class="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold">Top 3 Search Placement ⭐</span>
+        </div>
+
+        <!-- Rich Card -->
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl">
+          <div class="relative h-64 bg-slate-800">
+            <img src="https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=1200&q=80" alt="Cover" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/40"></div>
+            
+            <div class="absolute top-4 left-4 flex gap-2">
+              <span class="bg-amber-500 text-black text-xs font-black px-3 py-1 rounded-full shadow-lg">★ 4.9 Super Vendor</span>
+              <span class="bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">✓ Verified</span>
+            </div>
+
+            <div class="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+              <div>
+                <h4 class="text-2xl font-black text-white">Sunset Royal Caterers & Event Banquets</h4>
+                <p class="text-xs text-slate-300">📍 SG Highway, Ahmedabad • 🍽️ Destination Weddings & Grand Receptions</p>
+              </div>
+              <div class="text-right">
+                <span class="text-xs text-slate-300 block">Starts from</span>
+                <span class="text-2xl font-black text-emerald-400">₹45,000</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 flex flex-wrap md:flex-nowrap items-center justify-between gap-4">
+            <div class="flex flex-wrap gap-2 text-xs">
+              <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-xl border border-slate-700 font-semibold">Live Chaat</span>
+              <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-xl border border-slate-700 font-semibold">Smoked Mocktails</span>
+              <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-xl border border-slate-700 font-semibold">100% Pure Veg Available</span>
+              <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-xl border border-slate-700 font-semibold">Destination Setup</span>
+            </div>
+            
+            <button onclick="showNotify('BookMe Instant Booking Drawer Opened for Customer!')" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-extrabold text-sm px-6 py-3 rounded-2xl shadow-lg transition-all whitespace-nowrap">
+              Book This Vendor ⚡
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 bg-emerald-500 text-slate-950 font-bold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50 animate-bounce">
+      <span>✓</span> <span id="toast-text">Action completed successfully!</span>
+    </div>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      const tabs = ['dashboard', 'gallery', 'packages', 'calendar', 'customerView'];
+      tabs.forEach(t => {
+        document.getElementById('content-' + t).classList.add('hidden');
+        document.getElementById('tab-' + t).className = 'px-4 py-2 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all';
+      });
+      document.getElementById('content-' + tabId).classList.remove('hidden');
+      document.getElementById('tab-' + tabId).className = 'px-4 py-2 rounded-xl font-bold bg-indigo-600 text-white shadow-md flex items-center gap-2 transition-all';
+    }
+
+    function showNotify(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-text').innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+    }
+
+    function previewLogo(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('logo-preview').src = e.target.result;
+          document.getElementById('logo-preview').classList.remove('hidden');
+          document.getElementById('logo-text').classList.add('hidden');
+          showNotify('Business Logo updated successfully!');
+        }
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function handleImageUpload(event) {
+      const files = event.target.files;
+      if (!files.length) return;
+
+      const container = document.getElementById('gallery-container');
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const div = document.createElement('div');
+          div.className = 'relative group rounded-2xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 aspect-video';
+          div.innerHTML = `
+            <img src="${e.target.result}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300">
+            <div class="absolute top-2 left-2 bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+              New Upload
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 justify-between">
+              <span class="text-xs text-white font-semibold">${file.name}</span>
+              <button onclick="removePhoto(this)" class="bg-red-500/80 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded-md">Delete</button>
+            </div>
+          `;
+          container.prepend(div);
+          updatePhotoCount();
+        };
+        reader.readAsDataURL(file);
+      }
+      showNotify(`${files.length} Photo(s) uploaded successfully!`);
+    }
+
+    function removePhoto(btn) {
+      const card = btn.closest('.relative');
+      card.remove();
+      updatePhotoCount();
+      showNotify('Photo deleted from gallery.');
+    }
+
+    function updatePhotoCount() {
+      const count = document.getElementById('gallery-container').children.length;
+      document.getElementById('photo-count').innerText = count;
+    }
+
+    function togglePackageAddon(id, price) {
+      const checkbox = document.getElementById(id);
+      checkbox.checked = !checkbox.checked;
+      updateBundleTotal();
+    }
+
+    function updateBundleTotal() {
+      let total = 45000;
+      if (document.getElementById('addon-chaat').checked) total += 15000;
+      if (document.getElementById('addon-mocktail').checked) total += 20000;
+      if (document.getElementById('addon-chef').checked) total += 25000;
+      document.getElementById('dynamic-package-price').innerText = '₹' + total.toLocaleString('en-IN');
+    }
+
+    function acceptBooking(id) {
+      const el = document.getElementById(id);
+      el.style.opacity = '0.3';
+      el.style.pointerEvents = 'none';
+      showNotify('Booking Accepted! Event added to your calendar and Escrow locked.');
+    }
+
+    function declineBooking(id) {
+      const el = document.getElementById(id);
+      el.style.opacity = '0.3';
+      el.style.pointerEvents = 'none';
+      showNotify('Booking Inquiry Declined.');
+    }
+
+    function toggleCalendarDate(btn) {
+      if (btn.classList.contains('bg-emerald-500/10')) {
+        btn.className = 'p-3.5 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 hover:scale-105 transition-all';
+        btn.innerHTML = btn.innerText + ' 🚫';
+        showNotify('Date marked as BLOCKED on BookMe.');
+      } else {
+        btn.className = 'p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:scale-105 transition-all';
+        btn.innerHTML = btn.innerText.replace(' 🚫', '');
+        showNotify('Date marked as AVAILABLE on BookMe.');
+      }
+    }
+  </script>
+</body>
+</html>
