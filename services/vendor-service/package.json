@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "vendor-service",
   "version": "1.0.0",
   "description": "BookMe vendor-service - owned by Person B",
@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "node test/integration.test.js"
   },
   "dependencies": {
     "express": "^4.19.2",
