@@ -1,9 +1,11 @@
 import { useState } from "react";
 import "./App.css";
+import { VendorDiscovery, VendorDashboard } from "./features/vendor";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedVendor, setSelectedVendor] = useState(null);
 
   const events = [
     {
@@ -31,37 +33,64 @@ export default function App() {
   return (
     <div className="page-shell">
       <header className="topbar">
-        <div className="brand-wrap">
+        <div className="brand-wrap cursor-pointer" onClick={() => setCurrentView("home")}>
           <div className="brand-mark">B</div>
 
           <div>
             <p className="brand-name">BookMe</p>
-            <span className="brand-subtitle">Event Booking</span>
+            <span className="brand-subtitle">Event Operating Platform</span>
           </div>
         </div>
 
         <nav className="main-nav" aria-label="Main navigation">
           <button
             type="button"
+            className={currentView === "discover" ? "active" : ""}
             onClick={() => setCurrentView("discover")}
           >
             Discover
           </button>
 
-          <button type="button">Events</button>
+          <button
+            type="button"
+            className={currentView === "events" ? "active" : ""}
+            onClick={() => setCurrentView("home")}
+          >
+            Events
+          </button>
 
-          <button type="button">Bookings</button>
+          <button
+            type="button"
+            className={currentView === "vendors" ? "active" : ""}
+            onClick={() => setCurrentView("vendors")}
+          >
+            Vendors
+          </button>
 
-          <button type="button">Vendors</button>
+          <button
+            type="button"
+            className={currentView === "vendor-portal" ? "active" : ""}
+            onClick={() => setCurrentView("vendor-portal")}
+          >
+            Vendor Portal
+          </button>
         </nav>
 
         <div className="topbar-actions">
-          <button className="ghost-button" type="button">
-            Sign in
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => setCurrentView("vendor-portal")}
+          >
+            Vendor Login
           </button>
 
-          <button className="primary-button" type="button">
-            Create event
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => setCurrentView("vendors")}
+          >
+            Find Vendors ⚡
           </button>
         </div>
       </header>
@@ -71,26 +100,34 @@ export default function App() {
         {currentView === "home" && (
           <section className="discover-header">
             <div>
-              <p className="eyebrow">Book memorable experiences</p>
+              <p className="eyebrow">AI-Powered Event Platform</p>
 
               <h1>
                 Plan events with effortless
                 <br />
-                booking workflows.
+                booking & vendor workflows.
               </h1>
 
               <p>
-                Event organizers can browse services, compare vendors,
-                and manage bookings in one place.
+                Browse verified caterers, photographers, decorators, and DJs with real-time availability and dynamic package builders.
               </p>
 
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() => setCurrentView("discover")}
-              >
-                Explore events
-              </button>
+              <div className="flex gap-3 mt-4">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => setCurrentView("vendors")}
+                >
+                  Explore Vendors
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setCurrentView("vendor-portal")}
+                >
+                  Vendor Portal
+                </button>
+              </div>
             </div>
           </section>
         )}
@@ -142,10 +179,10 @@ export default function App() {
                     <button
                       className="secondary-button full-width"
                       type="button"
-                       onClick={() => {
-                       setSelectedEvent(event);
-                       setCurrentView("booking");
-                   }}
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setCurrentView("booking");
+                      }}
                     >
                       Book now
                     </button>
@@ -157,7 +194,25 @@ export default function App() {
           </>
         )}
 
+        {/* Vendors Marketplace Discovery View */}
+        {currentView === "vendors" && (
+          <VendorDiscovery
+            onSelectVendor={(v) => {
+              setSelectedVendor(v);
+              setCurrentView("vendor-portal");
+            }}
+            onOpenVendorPortal={() => setCurrentView("vendor-portal")}
+          />
+        )}
+
+        {/* Vendor Management Dashboard & Operating Portal */}
+        {currentView === "vendor-portal" && (
+          <VendorDashboard
+            onSwitchToMarketplace={() => setCurrentView("vendors")}
+          />
+        )}
+
       </main>
     </div>
   );
-}
+}

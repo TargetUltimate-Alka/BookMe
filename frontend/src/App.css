@@ -635,3 +635,709 @@ button:focus-visible {
   outline: 3px solid rgba(99, 102, 241, 0.25);
   outline-offset: 3px;
 }
+
+/* =========================================================
+   VENDOR PORTAL & MARKETPLACE STYLES (Person B)
+   ========================================================= */
+
+.vendor-portal-wrap, .discovery-section {
+  padding: 24px 0 60px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.vendor-portal-header, .discovery-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  margin-bottom: 24px;
+}
+
+.vendor-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.vendor-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 20px;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.25);
+}
+
+.vendor-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vendor-title-row h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+}
+
+.badge-verified {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-rating {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vendor-subinfo {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.vendor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.payout-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 8px 16px;
+  border-radius: 14px;
+  text-align: right;
+}
+
+.payout-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.payout-val {
+  font-size: 17px;
+  font-weight: 800;
+  color: #059669;
+}
+
+/* Nav Tabs */
+.vendor-nav-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 8px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.tab-btn.active {
+  background: #4f46e5;
+  color: white;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+/* Metrics Row */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-box {
+  background: white;
+  border: 1px solid #e5e7eb;
+  padding: 18px;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+}
+
+.metric-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.metric-num {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 4px 0;
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.metric-sub.text-green {
+  color: #059669;
+}
+
+/* Inquiries Card */
+.inquiries-card, .vendor-section-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.inquiries-header, .vendor-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.inquiries-header h3, .vendor-section-header h3 {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.inquiries-header p, .vendor-section-header p {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.badge-count {
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 99px;
+}
+
+.inquiries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inquiry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  background: #f8fafc;
+  transition: all 0.2s;
+}
+
+.inquiry-row:hover {
+  border-color: #cbd5e1;
+  background: white;
+}
+
+.inquiry-main h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.inquiry-client {
+  font-size: 12px;
+  color: #475569;
+  margin: 4px 0;
+}
+
+.inquiry-meta {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0;
+}
+
+.inquiry-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inquiry-price strong {
+  display: block;
+  font-size: 15px;
+  color: #059669;
+}
+
+.inquiry-price span {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.status-tag {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: 10px;
+}
+
+.status-tag.accepted {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-tag.declined {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Toast */
+.notification-toast {
+  background: #059669;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.2);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Gallery Grid */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.gallery-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border: 1px solid #e2e8f0;
+  background: #0f172a;
+}
+
+.gallery-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.gallery-card:hover img {
+  transform: scale(1.05);
+}
+
+.cover-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #f59e0b;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  z-index: 2;
+}
+
+.gallery-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 12px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 3;
+}
+
+.gallery-card:hover .gallery-overlay {
+  opacity: 1;
+}
+
+.photo-title {
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.photo-tag {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+.photo-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.action-btn-cover, .action-btn-del {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.action-btn-cover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+}
+
+.action-btn-del {
+  background: #ef4444;
+  color: white;
+}
+
+/* Packages Grid */
+.packages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.package-item {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.package-item.selected {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.package-item h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.package-item p {
+  font-size: 11px;
+  color: #64748b;
+  margin: 4px 0;
+}
+
+.item-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.price-badge-box {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 6px 14px;
+  border-radius: 12px;
+  text-align: right;
+}
+
+.price-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #059669;
+  font-weight: 700;
+  display: block;
+}
+
+.price-amount {
+  font-size: 16px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.actions-row-end {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* Calendar Grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.calendar-date-btn {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  border: 1px solid transparent;
+}
+
+.calendar-date-btn:hover {
+  transform: scale(1.05);
+}
+
+.calendar-date-btn.available {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.calendar-date-btn.blocked {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.calendar-date-btn.booked {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #c7d2fe;
+}
+
+.date-note {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.legend-row {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot.green { background: #10b981; }
+.dot.red { background: #ef4444; }
+.dot.purple { background: #6366f1; }
+
+/* Discovery / Marketplace View */
+.filter-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.search-input-wrap input {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+
+.category-pills-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill-btn {
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  background: white;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pill-btn.active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: white;
+}
+
+.vendor-marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.vendor-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.vendor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+.vendor-card-cover {
+  position: relative;
+  height: 190px;
+  background: #0f172a;
+}
+
+.vendor-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vendor-card-badges {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.vendor-card-content {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.vendor-card-header h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.vendor-location {
+  font-size: 12px;
+  color: #64748b;
+  margin: 4px 0 10px;
+}
+
+.vendor-desc {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.vendor-tags-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.vendor-tag-pill {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.vendor-card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.price-sub {
+  font-size: 10px;
+  color: #94a3b8;
+  display: block;
+}
+
+.price-main {
+  font-size: 17px;
+  font-weight: 800;
+  color: #059669;
+}
