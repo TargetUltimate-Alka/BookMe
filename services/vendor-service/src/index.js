@@ -28,11 +28,10 @@ app.get('/internal/vendors/:id/summary', vendorController.getVendorSummary);
 app.use('/api/vendors', vendorRoutes);
 app.use('/vendors', vendorRoutes);
 
+const { errorHandler } = require('./shared/middleware/errorHandler');
+
 // Global Error Handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message });
-});
+app.use(errorHandler);
 
 async function startServer() {
   try {
