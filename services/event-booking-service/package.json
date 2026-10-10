@@ -1,18 +1,28 @@
 {
   "name": "event-booking-service",
   "version": "1.0.0",
-  "description": "BookMe event-booking-service - owned by Person C",
-  "main": "src/index.js",
+  "description": "BookMe event-booking-service - owned by Person C (TargetUltimate-Alka)",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "test": "echo \"no tests yet\" && exit 0"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node scripts/seed.js",
+    "test": "jest --runInBand --detectOpenHandles --forceExit"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "pg": "^8.11.5",
-    "dotenv": "^16.4.5",
     "ajv": "^8.12.0",
-    "express-rate-limit": "^7.1.5"
+    "ajv-formats": "^2.1.1",
+    "amqplib": "^0.10.4",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.1.5",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "supertest": "^7.0.0"
   }
 }

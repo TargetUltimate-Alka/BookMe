@@ -1,4 +1,4 @@
-﻿version: "3.9"
+version: "3.9"
 
 services:
   auth-service:
@@ -38,8 +38,16 @@ services:
   event-booking-service:
     build: ./services/event-booking-service
     ports:
-      - "3003:3000"
-    env_file: ./services/event-booking-service/.env.example
+      - "4003:4003"
+    environment:
+      - PORT=4003
+      - DATABASE_URL=postgres://user:password@event-booking-db:5432/event_booking_db
+      - INTERNAL_API_KEY=dev-internal-key-123
+      - RABBITMQ_URL=amqp://guest:guest@localhost:5672
+      - VENDOR_SERVICE_URL=http://vendor-service:3000
+      - VENDOR_CLIENT_MODE=mock
+      - DEV_AUTH_BYPASS=true
+      - NODE_ENV=development
     depends_on:
       - event-booking-db
 
