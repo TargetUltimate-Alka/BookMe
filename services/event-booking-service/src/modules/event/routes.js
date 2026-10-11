@@ -1,332 +1,122 @@
-/**
- * Event routes
- * Status: Implements all HTTP methods with proper status codes and error handling
- */
-
 const express = require('express');
-const { validateRequest, schemas } = require('../../shared/middleware/validation');
-const { setCacheControl, handleETag } = require('../../shared/middleware/cache');
-const { apiLimiter } = require('../../shared/middleware/rateLimit');
-const Event = require('../../shared/models/Event');
-const ChecklistItem = require('../../shared/models/ChecklistItem');
+const eventController = require('./controllers/eventController');
+const budgetController = require('./controllers/budgetController');
+const checklistController = require('./controllers/checklistController');
+const suggestionController = require('./controllers/suggestionController');
+const requireRole = require('../../shared/middleware/requireRole');
+const { validate } = require('../../shared/middleware/validate');
+const {
+  createEventSchema,
+  updateEventSchema,
+  updateBudgetSchema,
+  createChecklistSchema,
+  updateChecklistSchema,
+} = require('./validators/eventValidators');
 
-const router = express.Router();
+const eventRouter = express.Router();
+const checklistItemRouter = express.Router();
 
-// Apply rate limiting to all event routes
-router.use(apiLimiter);
+// ==========================================
+// 1. Event Routes (/events)
+// ==========================================
 
-// Apply ETag handling to all GET requests
-router.get('*', handleETag);
-
-// Helper to get DB and models from app context
-const getModels = (req) => {
-  const db = req.app.locals.db;
-  return {
-    eventModel: new Event(db),
-    checklistModel: new ChecklistItem(db),
-  };
-};
-
-/**
- * POST /api/events
- * Create a new event
- * Status: 201 Created
- */
-router.post(
+// Create Event
+eventRouter.post(
   '/',
-  validateRequest(schemas.eventCreateSchema),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel } = getModels(req);
-      const event = await eventModel.createEvent(customerId, req.body);
-
-      res.status(201).json(event);
-    } catch (err) {
-      next(err);
-    }
-  }
+  requireRole('customer'),
+  validate(createEventSchema, 'body'),
+  eventController.createEvent
 );
 
-/**
- * GET /api/events
- * List all events for logged-in customer
- * Status: 200 OK with Cache-Control
- */
-router.get(
+// List Customer's Events
+eventRouter.get(
   '/',
-  setCacheControl({ maxAge: 60, isPrivate: true }),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel } = getModels(req);
-      const events = await eventModel.getEventsByCustomer(customerId);
-
-      res.status(200).json(events);
-    } catch (err) {
-      next(err);
-    }
-  }
+  requireRole('customer'),
+  eventController.listEvents
 );
 
-/**
- * GET /api/events/:id
- * Get a specific event
- * Status: 200 OK, 404 Not Found, 401 Unauthorized
- */
-router.get(
-  '/:id',
-  setCacheControl({ maxAge: 60, isPrivate: true }),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel } = getModels(req);
-      const event = await eventModel.getEventById(req.params.id, customerId);
-
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        err.details = [{ id: req.params.id }];
-        return next(err);
-      }
-
-      res.status(200).json(event);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-/**
- * PATCH /api/events/:id
- * Update an event
- * Status: 200 OK, 404 Not Found, 400 Bad Request, 401 Unauthorized
- */
-router.patch(
-  '/:id',
-  validateRequest(schemas.eventUpdateSchema),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel } = getModels(req);
-      const event = await eventModel.updateEvent(req.params.id, customerId, req.body);
-
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        err.details = [{ id: req.params.id }];
-        return next(err);
-      }
-
-      res.status(200).json(event);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-/**
- * GET /api/events/:id/dashboard
- * Get event dashboard with booking summary
- * Status: 200 OK with Cache-Control
- */
-router.get(
+// Event Dashboard Aggregate
+eventRouter.get(
   '/:id/dashboard',
-  setCacheControl({ maxAge: 30, isPrivate: true }),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel, checklistModel } = getModels(req);
-      const db = req.app.locals.db;
-
-      const event = await eventModel.getEventById(req.params.id, customerId);
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      // Get booking info
-      const bookingQuery = `
-        SELECT id, vendor_name_snapshot as "vendorName", status, price_snapshot as price
-        FROM bookings
-        WHERE event_id = $1
-      `;
-      const bookingResult = await db.query(bookingQuery, [req.params.id]);
-      const bookings = bookingResult.rows;
-
-      const totalBooked = bookings.reduce((sum, b) => sum + (b.price || 0), 0);
-
-      // Get checklist stats
-      const checklistStats = await checklistModel.getChecklistStats(req.params.id);
-
-      const dashboard = {
-        eventId: event.id,
-        budget: event.budget,
-        totalBooked,
-        bookings,
-        checklist: {
-          total: parseInt(checklistStats.total, 10) || 0,
-          done: parseInt(checklistStats.done, 10) || 0,
-        },
-      };
-
-      res.status(200).json(dashboard);
-    } catch (err) {
-      next(err);
-    }
-  }
+  requireRole(['customer', 'admin']),
+  eventController.getDashboard
 );
 
-/**
- * POST /api/events/:id/checklist
- * Add a checklist item
- * Status: 201 Created
- */
-router.post(
+// Event Suggestions
+eventRouter.get(
+  '/:id/suggestions',
+  requireRole(['customer', 'admin']),
+  suggestionController.getSuggestions
+);
+
+// Budget Management
+eventRouter.get(
+  '/:id/budget',
+  requireRole(['customer', 'admin']),
+  budgetController.getBudget
+);
+
+eventRouter.put(
+  '/:id/budget',
+  requireRole(['customer', 'admin']),
+  validate(updateBudgetSchema, 'body'),
+  budgetController.updateBudget
+);
+
+// Checklist Under Event
+eventRouter.get(
   '/:id/checklist',
-  validateRequest(schemas.checklistItemCreateSchema),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel, checklistModel } = getModels(req);
-
-      // Verify event exists and belongs to user
-      const event = await eventModel.getEventById(req.params.id, customerId);
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      const item = await checklistModel.createItem(req.params.id, req.body.task);
-
-      res.status(201).json(item);
-    } catch (err) {
-      next(err);
-    }
-  }
+  requireRole(['customer', 'admin']),
+  checklistController.getChecklist
 );
 
-/**
- * PATCH /api/events/:id/checklist/:itemId
- * Update a checklist item
- * Status: 200 OK, 404 Not Found, 400 Bad Request
- */
-router.patch(
-  '/:id/checklist/:itemId',
-  validateRequest(schemas.checklistItemUpdateSchema),
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel, checklistModel } = getModels(req);
-
-      // Verify event exists and belongs to user
-      const event = await eventModel.getEventById(req.params.id, customerId);
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      const item = await checklistModel.updateItem(req.params.itemId, req.params.id, req.body);
-
-      if (!item) {
-        const err = new Error('Checklist item not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      res.status(200).json(item);
-    } catch (err) {
-      next(err);
-    }
-  }
+eventRouter.post(
+  '/:id/checklist',
+  requireRole(['customer', 'admin']),
+  validate(createChecklistSchema, 'body'),
+  checklistController.createChecklistItem
 );
 
-/**
- * DELETE /api/events/:id/checklist/:itemId
- * Delete a checklist item
- * Status: 204 No Content, 404 Not Found
- */
-router.delete(
-  '/:id/checklist/:itemId',
-  async (req, res, next) => {
-    try {
-      const customerId = req.user?.id;
-      if (!customerId) {
-        const err = new Error('User not authenticated');
-        err.status = 401;
-        return next(err);
-      }
-
-      const { eventModel, checklistModel } = getModels(req);
-
-      // Verify event exists and belongs to user
-      const event = await eventModel.getEventById(req.params.id, customerId);
-      if (!event) {
-        const err = new Error('Event not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      // Verify item exists
-      const item = await checklistModel.getItemById(req.params.itemId, req.params.id);
-      if (!item) {
-        const err = new Error('Checklist item not found');
-        err.status = 404;
-        return next(err);
-      }
-
-      await checklistModel.deleteItem(req.params.itemId, req.params.id);
-
-      res.status(204).send();
-    } catch (err) {
-      next(err);
-    }
-  }
+// Get Single Event
+eventRouter.get(
+  '/:id',
+  requireRole(['customer', 'admin']),
+  eventController.getEventById
 );
 
-module.exports = router;
+// Update Event
+eventRouter.put(
+  '/:id',
+  requireRole(['customer', 'admin']),
+  validate(updateEventSchema, 'body'),
+  eventController.updateEvent
+);
+
+// Soft Delete (Cancel) Event
+eventRouter.delete(
+  '/:id',
+  requireRole(['customer', 'admin']),
+  eventController.cancelEvent
+);
+
+// ==========================================
+// 2. Direct Checklist Item Routes (/checklist)
+// ==========================================
+
+checklistItemRouter.put(
+  '/:id',
+  requireRole(['customer', 'admin']),
+  validate(updateChecklistSchema, 'body'),
+  checklistController.updateChecklistItem
+);
+
+checklistItemRouter.delete(
+  '/:id',
+  requireRole(['customer', 'admin']),
+  checklistController.deleteChecklistItem
+);
+
+module.exports = {
+  eventRouter,
+  checklistItemRouter,
+};

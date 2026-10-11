@@ -1,39 +1,68 @@
 import { useState } from "react";
 import "./App.css";
-import { VendorDiscovery, VendorDashboard } from "./features/vendor";
+import {
+  MyEventsPage,
+  CreateEventPage,
+  EventDashboardPage,
+  MyBookingsPage,
+  BookingDetailsPage,
+  BookingConfirmationPage,
+  VendorRequestsPage,
+  VendorRequestDetailsPage,
+  AdminBookingsPage,
+  AdminBookingDetailsPage,
+  BookVendorModal,
+  setAuthContext,
+} from "./features/events-booking/index.js";
+import { VendorDiscovery, VendorDashboard } from "./features/vendor/index.js";
 
 export default function App() {
-  const [currentView, setCurrentView] = useState("home");
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [currentView, setCurrentView] = useState("events");
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  const events = [
-    {
-      id: 1,
-      title: "Grand Wedding Celebration",
-      type: "Wedding",
-      date: "Dec 05, 2026",
-      location: "Ahmedabad",
-      guests: "150 guests",
-      price: "₹1,20,000",
-      description: "A premium venue package for large celebrations.",
-    },
-    {
-      id: 2,
-      title: "Startup Launch Night",
-      type: "Corporate",
-      date: "Jan 18, 2027",
-      location: "Gandhinagar",
-      guests: "85 guests",
-      price: "₹95,000",
-      description: "A polished event setup for launches and networking.",
-    },
-  ];
+  const [activeRole, setActiveRole] = useState("customer"); // 'customer' | 'vendor' | 'admin'
+
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [vendorToBook, setVendorToBook] = useState(null);
+
+  const handleRoleChange = (role) => {
+    setActiveRole(role);
+    if (role === "customer") {
+      setAuthContext("usr_123", "customer");
+      setCurrentView("events");
+    } else if (role === "vendor") {
+      setAuthContext("vnd_456", "vendor");
+      setCurrentView("vendor-portal");
+    } else if (role === "admin") {
+      setAuthContext("admin_1", "admin");
+      setCurrentView("admin-bookings");
+    }
+  };
+
+  const handleBookNow = (catalogItem) => {
+    setVendorToBook({
+      vendorId: catalogItem.id || "vnd_sunset_caterers",
+      vendorName: catalogItem.businessName || catalogItem.title,
+      packageName: catalogItem.category ? `${catalogItem.category} Package` : "Standard Package",
+      category: catalogItem.category || "Catering",
+      price: catalogItem.basePrice || catalogItem.price || 45000,
+    });
+    setIsBookModalOpen(true);
+  };
 
   return (
     <div className="page-shell">
       <header className="topbar">
-        <div className="brand-wrap cursor-pointer" onClick={() => setCurrentView("home")}>
+        <div
+          className="brand-wrap cursor-pointer"
+          onClick={() => {
+            if (activeRole === "customer") setCurrentView("events");
+            else if (activeRole === "vendor") setCurrentView("vendor-portal");
+            else setCurrentView("admin-bookings");
+          }}
+        >
           <div className="brand-mark">B</div>
 
           <div>
@@ -42,177 +71,295 @@ export default function App() {
           </div>
         </div>
 
+        {/* Dynamic Navigation Tabs based on Role */}
         <nav className="main-nav" aria-label="Main navigation">
-          <button
-            type="button"
-            className={currentView === "discover" ? "active" : ""}
-            onClick={() => setCurrentView("discover")}
-          >
-            Discover
-          </button>
+          {activeRole === "customer" && (
+            <>
+              <button
+                type="button"
+                className={currentView === "events" ? "active" : ""}
+                onClick={() => setCurrentView("events")}
+              >
+                My Events
+              </button>
 
-          <button
-            type="button"
-            className={currentView === "events" ? "active" : ""}
-            onClick={() => setCurrentView("home")}
-          >
-            Events
-          </button>
+              <button
+                type="button"
+                className={currentView === "bookings" ? "active" : ""}
+                onClick={() => setCurrentView("bookings")}
+              >
+                My Bookings
+              </button>
 
-          <button
-            type="button"
-            className={currentView === "vendors" ? "active" : ""}
-            onClick={() => setCurrentView("vendors")}
-          >
-            Vendors
-          </button>
+              <button
+                type="button"
+                className={currentView === "create-event" ? "active" : ""}
+                onClick={() => setCurrentView("create-event")}
+              >
+                Create Event
+              </button>
 
-          <button
-            type="button"
-            className={currentView === "vendor-portal" ? "active" : ""}
-            onClick={() => setCurrentView("vendor-portal")}
-          >
-            Vendor Portal
-          </button>
+              <button
+                type="button"
+                className={currentView === "discover" ? "active" : ""}
+                onClick={() => setCurrentView("discover")}
+              >
+                Find Vendors ⚡
+              </button>
+            </>
+          )}
+
+          {activeRole === "vendor" && (
+            <>
+              <button
+                type="button"
+                className={currentView === "vendor-portal" ? "active" : ""}
+                onClick={() => setCurrentView("vendor-portal")}
+              >
+                Operating Portal
+              </button>
+
+              <button
+                type="button"
+                className={currentView === "vendor-requests" ? "active" : ""}
+                onClick={() => setCurrentView("vendor-requests")}
+              >
+                Event Bookings
+              </button>
+            </>
+          )}
+
+          {activeRole === "admin" && (
+            <>
+              <button
+                type="button"
+                className={currentView === "admin-bookings" ? "active" : ""}
+                onClick={() => setCurrentView("admin-bookings")}
+              >
+                Platform Oversight
+              </button>
+            </>
+          )}
         </nav>
 
-        <div className="topbar-actions">
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => setCurrentView("vendor-portal")}
+        {/* Role Switcher & Action */}
+        <div className="topbar-actions" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              background: "#f3f4f6",
+              borderRadius: "8px",
+              padding: "0.2rem",
+              border: "1px solid #e5e7eb",
+            }}
           >
-            Vendor Login
-          </button>
+            <button
+              type="button"
+              onClick={() => handleRoleChange("customer")}
+              style={{
+                background: activeRole === "customer" ? "#ffffff" : "transparent",
+                color: activeRole === "customer" ? "#4f46e5" : "#6b7280",
+                fontWeight: activeRole === "customer" ? 700 : 500,
+                boxShadow: activeRole === "customer" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                borderRadius: "6px",
+                padding: "0.3rem 0.6rem",
+                fontSize: "0.75rem",
+              }}
+            >
+              👤 Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRoleChange("vendor")}
+              style={{
+                background: activeRole === "vendor" ? "#ffffff" : "transparent",
+                color: activeRole === "vendor" ? "#4f46e5" : "#6b7280",
+                fontWeight: activeRole === "vendor" ? 700 : 500,
+                boxShadow: activeRole === "vendor" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                borderRadius: "6px",
+                padding: "0.3rem 0.6rem",
+                fontSize: "0.75rem",
+              }}
+            >
+              🏢 Vendor
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRoleChange("admin")}
+              style={{
+                background: activeRole === "admin" ? "#ffffff" : "transparent",
+                color: activeRole === "admin" ? "#4f46e5" : "#6b7280",
+                fontWeight: activeRole === "admin" ? 700 : 500,
+                boxShadow: activeRole === "admin" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                borderRadius: "6px",
+                padding: "0.3rem 0.6rem",
+                fontSize: "0.75rem",
+              }}
+            >
+              🛡️ Admin
+            </button>
+          </div>
 
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setCurrentView("vendors")}
-          >
-            Find Vendors ⚡
-          </button>
+          {activeRole === "customer" && (
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setCurrentView("create-event")}
+            >
+              + Create event
+            </button>
+          )}
+
+          {activeRole === "vendor" && (
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setCurrentView("discover")}
+            >
+              Marketplace Preview
+            </button>
+          )}
         </div>
       </header>
 
       <main className="content-area">
-
-        {currentView === "home" && (
-          <section className="discover-header">
-            <div>
-              <p className="eyebrow">AI-Powered Event Platform</p>
-
-              <h1>
-                Plan events with effortless
-                <br />
-                booking & vendor workflows.
-              </h1>
-
-              <p>
-                Browse verified caterers, photographers, decorators, and DJs with real-time availability and dynamic package builders.
-              </p>
-
-              <div className="flex gap-3 mt-4">
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => setCurrentView("vendors")}
-                >
-                  Explore Vendors
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setCurrentView("vendor-portal")}
-                >
-                  Vendor Portal
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {currentView === "discover" && (
-          <>
-            <section className="discover-header">
-              <div>
-                <p className="eyebrow">Discover</p>
-
-                <h1>Find the perfect event experience</h1>
-              </div>
-
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() => setCurrentView("home")}
-              >
-                Back home
-              </button>
-            </section>
-
-            <section className="event-grid">
-              {events.map((event) => (
-                <article key={event.id} className="event-card">
-
-                  <div className="event-image">
-                    <span className="event-tag">
-                      {event.type}
-                    </span>
-                  </div>
-
-                  <div className="event-body">
-
-                    <div className="event-meta-top">
-                      <span>{event.date}</span>
-                      <span>{event.location}</span>
-                    </div>
-
-                    <h3>{event.title}</h3>
-
-                    <p>{event.description}</p>
-
-                    <div className="event-meta-bottom">
-                      <span>{event.guests}</span>
-                      <strong>{event.price}</strong>
-                    </div>
-
-                    <button
-                      className="secondary-button full-width"
-                      type="button"
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setCurrentView("booking");
-                      }}
-                    >
-                      Book now
-                    </button>
-
-                  </div>
-                </article>
-              ))}
-            </section>
-          </>
-        )}
-
-        {/* Vendors Marketplace Discovery View */}
-        {currentView === "vendors" && (
-          <VendorDiscovery
-            onSelectVendor={(v) => {
-              setSelectedVendor(v);
-              setCurrentView("vendor-portal");
+        {/* CUSTOMER VIEWS */}
+        {currentView === "events" && (
+          <MyEventsPage
+            onCreateEvent={() => setCurrentView("create-event")}
+            onSelectEvent={(id) => {
+              setSelectedEventId(id);
+              setCurrentView("event-dashboard");
             }}
-            onOpenVendorPortal={() => setCurrentView("vendor-portal")}
           />
         )}
 
-        {/* Vendor Management Dashboard & Operating Portal */}
+        {currentView === "create-event" && (
+          <CreateEventPage
+            onEventCreated={(ev) => {
+              setSelectedEventId(ev.id);
+              setCurrentView("event-dashboard");
+            }}
+            onNavigateBack={() => setCurrentView("events")}
+          />
+        )}
+
+        {currentView === "event-dashboard" && (
+          <EventDashboardPage
+            eventId={selectedEventId}
+            onNavigateBack={() => setCurrentView("events")}
+            onNavigateToBooking={(id) => {
+              setSelectedBookingId(id);
+              setCurrentView("booking-details");
+            }}
+            onFindVendors={() => setCurrentView("discover")}
+          />
+        )}
+
+        {currentView === "bookings" && (
+          <MyBookingsPage
+            onSelectBooking={(id) => {
+              setSelectedBookingId(id);
+              setCurrentView("booking-details");
+            }}
+            onNavigateToEvents={() => setCurrentView("events")}
+          />
+        )}
+
+        {currentView === "booking-details" && (
+          <BookingDetailsPage
+            bookingId={selectedBookingId}
+            onNavigateBack={() => {
+              if (activeRole === "customer") setCurrentView("bookings");
+              else if (activeRole === "vendor") setCurrentView("vendor-requests");
+              else setCurrentView("admin-bookings");
+            }}
+            onPaymentSuccess={(bkg) => {
+              setConfirmedBooking(bkg);
+              setCurrentView("booking-confirmation");
+            }}
+          />
+        )}
+
+        {currentView === "booking-confirmation" && (
+          <BookingConfirmationPage
+            booking={confirmedBooking}
+            onNavigateToBookings={() => setCurrentView("bookings")}
+            onNavigateToEvents={() => setCurrentView("events")}
+          />
+        )}
+
+        {/* VENDOR OPERATING PORTAL & INQUIRIES */}
         {currentView === "vendor-portal" && (
           <VendorDashboard
-            onSwitchToMarketplace={() => setCurrentView("vendors")}
+            onSwitchToMarketplace={() => setCurrentView("discover")}
           />
         )}
 
+        {currentView === "vendor-requests" && (
+          <VendorRequestsPage
+            onSelectRequest={(id) => {
+              setSelectedBookingId(id);
+              setCurrentView("vendor-request-details");
+            }}
+          />
+        )}
+
+        {currentView === "vendor-request-details" && (
+          <VendorRequestDetailsPage
+            bookingId={selectedBookingId}
+            onNavigateBack={() => setCurrentView("vendor-requests")}
+          />
+        )}
+
+        {/* ADMIN VIEWS */}
+        {currentView === "admin-bookings" && (
+          <AdminBookingsPage
+            onSelectBooking={(id) => {
+              setSelectedBookingId(id);
+              setCurrentView("admin-booking-details");
+            }}
+          />
+        )}
+
+        {currentView === "admin-booking-details" && (
+          <AdminBookingDetailsPage
+            bookingId={selectedBookingId}
+            onNavigateBack={() => setCurrentView("admin-bookings")}
+          />
+        )}
+
+        {/* DISCOVER VENDORS VIEW (Powered by VendorDiscovery) */}
+        {currentView === "discover" && (
+          <VendorDiscovery
+            onSelectVendor={(v) => handleBookNow(v)}
+            onOpenVendorPortal={() => {
+              handleRoleChange("vendor");
+              setCurrentView("vendor-portal");
+            }}
+          />
+        )}
       </main>
+
+      {/* Book Vendor Modal from catalog */}
+      {isBookModalOpen && (
+        <BookVendorModal
+          isOpen={isBookModalOpen}
+          onClose={() => setIsBookModalOpen(false)}
+          vendorInfo={vendorToBook}
+          onCreateNewEvent={() => {
+            setIsBookModalOpen(false);
+            setCurrentView("create-event");
+          }}
+          onSuccess={(bkg) => {
+            alert(`Booking successfully requested! ID: ${bkg.id}`);
+            setIsBookModalOpen(false);
+            setSelectedBookingId(bkg.id);
+            setCurrentView("booking-details");
+          }}
+        />
+      )}
     </div>
   );
-}
+}
