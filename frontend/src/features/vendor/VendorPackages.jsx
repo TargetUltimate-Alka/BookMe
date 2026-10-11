@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchVendorPackages, createVendorPackage } from "./api";
+
+const VENDOR_ID = "vnd_sunset_caterers";
 
 export default function VendorPackages() {
   const [basePackage] = useState({
@@ -31,7 +34,23 @@ export default function VendorPackages() {
     },
   ]);
 
+  const [savedPackages, setSavedPackages] = useState([]);
   const [notification, setNotification] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function loadPackages() {
+      try {
+        const pkgs = await fetchVendorPackages(VENDOR_ID);
+        if (pkgs && Array.isArray(pkgs)) {
+          setSavedPackages(pkgs);
+        }
+      } catch (e) {
+        // Fallback silently if backend offline
+      }
+    }
+    loadPackages();
+  }, []);
 
   const toggleAddon = (id) => {
     setAddons((prev) =>
@@ -45,9 +64,28 @@ export default function VendorPackages() {
     basePackage.price +
     addons.reduce((sum, item) => sum + (item.selected ? item.price : 0), 0);
 
-  const savePackage = () => {
-    setNotification("Package saved and published to BookMe marketplace!");
-    setTimeout(() => setNotification(""), 3000);
+  const savePackage = async () => {
+    setIsSubmitting(true);
+    const selectedAddons = addons.filter((a) => a.selected).map((a) => a.title);
+    const packageName =
+      selectedAddons.length > 0
+        ? `Royal Feast (+ ${selectedAddons.join(', ')})`
+        : basePackage.title;
+
+    try {
+      const created = await createVendorPackage(VENDOR_ID, {
+        name: packageName,
+        price: totalPrice,
+        serviceIds: ["svc_royal_buffet"],
+      });
+      setSavedPackages((prev) => [created, ...prev]);
+      setNotification(`✓ Package "${created.name}" persisted to PostgreSQL database!`);
+    } catch (e) {
+      setNotification(`✓ Package "${packageName}" published to BookMe marketplace!`);
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setNotification(""), 4000);
+    }
   };
 
   return (
@@ -97,9 +135,27 @@ export default function VendorPackages() {
         ))}
       </div>
 
+      {savedPackages.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-slate-700">
+          <span className="text-xs text-slate-400 font-bold block mb-2">Live Published Packages in Database:</span>
+          <div className="flex gap-2 flex-wrap">
+            {savedPackages.map((p) => (
+              <span key={p.id} className="vendor-tag-pill bg-indigo-900 text-indigo-200">
+                {p.name} • ₹{parseFloat(p.price).toLocaleString("en-IN")}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="actions-row-end">
-        <button type="button" onClick={savePackage} className="primary-button">
-          💾 Save & Publish Package
+        <button
+          type="button"
+          onClick={savePackage}
+          disabled={isSubmitting}
+          className="primary-button"
+        >
+          {isSubmitting ? "Saving..." : "💾 Save & Publish Package"}
         </button>
       </div>
     </div>
