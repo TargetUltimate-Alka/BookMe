@@ -134,6 +134,55 @@ export function LoginForm({ onSwitchToRegister }) {
           </button>
         </p>
       )}
+
+      {/* Quick Demo Access Bar */}
+      <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
+        <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+          ⚡ 1-Click Demo Login:
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+          <button
+            type="button"
+            style={{
+              padding: '0.4rem 0.75rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#f8fafc',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              color: '#334155',
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              setEmail('customer@bookme.com');
+              setPassword('password123');
+              setFieldErrors({});
+            }}
+          >
+            👤 Customer Demo
+          </button>
+          <button
+            type="button"
+            style={{
+              padding: '0.4rem 0.75rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#f8fafc',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              color: '#334155',
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              setEmail('vendor@bookme.com');
+              setPassword('password123');
+              setFieldErrors({});
+            }}
+          >
+            🏢 Vendor Demo
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
