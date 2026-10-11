@@ -1,0 +1,23 @@
+const config = require('../config');
+
+/**
+ * Middleware for securing service-to-service internal endpoints
+ * Requires X-Internal-Key header to match the shared secret.
+ */
+function internalAuth(req, res, next) {
+  const internalKey = req.header('X-Internal-Key');
+
+  if (!internalKey || internalKey !== config.internalApiKey) {
+    return res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Invalid or missing internal service key',
+        details: [],
+      },
+    });
+  }
+
+  next();
+}
+
+module.exports = internalAuth;
