@@ -29,7 +29,11 @@ app.get('/api/vendors/health', (req, res) => {
   res.status(200).json({ status: 'UP', service: 'vendor-service', timestamp: new Date() });
 });
 
+const internalRoutes = require('./modules/vendor/routes/internalRoutes');
+
 // Internal Endpoints for other microservices (event-booking, payment-feedback)
+app.use('/internal', internalRoutes);
+app.use('/api/internal', internalRoutes);
 app.patch('/api/internal/vendors/:id/rating', vendorController.updateRating);
 app.get('/api/internal/vendors/:id/summary', vendorController.getVendorSummary);
 app.patch('/internal/vendors/:id/rating', vendorController.updateRating);
