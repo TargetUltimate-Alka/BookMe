@@ -5,9 +5,20 @@ const vendorRoutes = require('./modules/vendor/routes/vendorRoutes');
 const vendorController = require('./modules/vendor/controllers/vendorController');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 
 app.use(express.json());
+
+// Enable CORS for frontend clients (Vite, local HTML, etc.)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Idempotency-Key');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Health Check Endpoints
 app.get('/health', (req, res) => {

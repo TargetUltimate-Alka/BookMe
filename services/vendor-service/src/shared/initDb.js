@@ -40,13 +40,43 @@ const createTablesQuery = `
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_vendor_date UNIQUE (vendor_id, date)
   );
+
+  -- Seed Default Verified Vendors (Idempotent)
+  INSERT INTO vendors (id, user_id, business_name, category, description, location, verified, rating)
+  VALUES 
+    ('vnd_sunset_caterers', 'usr_sunset_01', 'Sunset Royal Caterers & Event Crafters', 'catering', 'Specialized in royal destination wedding buffets, multi-cuisine live counters, and artisanal mocktail lounges.', 'SG Highway, Ahmedabad, India', TRUE, 4.96),
+    ('vnd_dream_clicks', 'usr_dream_02', 'Dream Clicks Cinematic Studio', 'photography', 'Award-winning candid wedding storytellers, cinematic 4K highlight reels, drone aerial shoots.', 'Vastrapur, Ahmedabad, India', TRUE, 4.90),
+    ('vnd_aura_decors', 'usr_aura_03', 'Aura Luxury Stage & Floral Decors', 'decoration', 'Grand entrance floral arches, dynamic LED tunnel stages, and royal wedding mandap setups.', 'Bodakdev, Ahmedabad, India', TRUE, 4.85),
+    ('vnd_electra_dj', 'usr_electra_04', 'Electra DJ & Sound Innovations', 'dj', 'High-energy club DJ setups, celebrity sangeet nights, JBL line array sound & intelligent CO2 fog jets.', 'Prahlad Nagar, Ahmedabad, India', TRUE, 4.95)
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Seed Services
+  INSERT INTO services (id, vendor_id, title, description, base_price)
+  VALUES
+    ('svc_royal_buffet', 'vnd_sunset_caterers', 'Signature Royal Wedding Multi-Cuisine Feast', '4 Starters, 6 Main Course, Dal Makhani, Paneer Tikka Masala, Dum Biryani & 3 Desserts', 45000),
+    ('svc_live_chaat', 'vnd_sunset_caterers', 'Live Delhi Chaat & Street Food Counter', 'Pani Puri, Dahi Bhalla, Sev Puri & Aloo Tikki with 2 Dedicated Chefs', 15000),
+    ('svc_candid_photo', 'vnd_dream_clicks', 'Full Day Candid Wedding Shoot & 4K Cinema', '2 Photographers + 1 Cinematographer + Drone Aerial Coverage', 55000)
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Seed Packages
+  INSERT INTO packages (id, vendor_id, name, price, service_ids)
+  VALUES
+    ('pkg_royal_buffet', 'vnd_sunset_caterers', 'Signature 5-Course Royal Wedding Buffet', 45000, ARRAY['svc_royal_buffet']),
+    ('pkg_platinum_photo', 'vnd_dream_clicks', 'Platinum Wedding Cinema & Drone Package', 95000, ARRAY['svc_candid_photo'])
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Seed Availability
+  INSERT INTO availability (id, vendor_id, date, status, reason)
+  VALUES
+    ('blk_dec_05', 'vnd_sunset_caterers', '2026-12-05', 'BLOCKED', '💍 Booked for Grand Destination Wedding')
+  ON CONFLICT (vendor_id, date) DO NOTHING;
 `;
 
 async function initDb() {
   try {
     console.log('Initializing database schema...');
     await db.query(createTablesQuery);
-    console.log('Database schema initialized successfully.');
+    console.log('Database schema and seed verified successfully.');
   } catch (error) {
     console.error('Failed to initialize database schema:', error);
     throw error;
