@@ -154,22 +154,39 @@ class InMemoryStore {
     }
 
     if (/UPDATE events SET/i.test(cleanSql)) {
-      // Find event ID in params
-      const id = params[params.length - 1];
+      let id = null;
+      if (/WHERE id = \$1\b/i.test(cleanSql)) {
+        id = params[0];
+      } else {
+        id = params[params.length - 1];
+      }
       const event = this.events.get(id);
       if (!event) return { rows: [], rowCount: 0 };
 
       if (/status = 'CANCELLED'/i.test(cleanSql) || /status = \$2/i.test(cleanSql)) {
         event.status = 'CANCELLED';
       }
-      if (/name = COALESCE/i.test(cleanSql)) {
-        const [name, eventDate, budget, guestCount, city] = params;
-        if (name) event.name = name;
-        if (eventDate) event.event_date = eventDate;
-        if (budget !== undefined) event.budget = Number(budget);
-        if (guestCount !== undefined) event.guest_count = Number(guestCount);
-        if (city) event.city = city;
+
+      const setPartMatch = cleanSql.match(/SET (.+?) WHERE/i);
+      if (setPartMatch) {
+        const clauses = setPartMatch[1].split(',').map((s) => s.trim());
+        clauses.forEach((clause) => {
+          const m = clause.match(/([a-zA-Z0-9_]+)\s*=\s*\$(\d+)/);
+          if (m) {
+            const field = m[1];
+            const paramIdx = parseInt(m[2], 10) - 1;
+            const val = params[paramIdx];
+            if (field === 'name') event.name = val;
+            else if (field === 'event_type') event.event_type = val;
+            else if (field === 'event_date') event.event_date = val;
+            else if (field === 'budget') event.budget = Number(val);
+            else if (field === 'guest_count') event.guest_count = Number(val);
+            else if (field === 'city') event.city = val;
+            else if (field === 'status') event.status = val;
+          }
+        });
       }
+
       event.updated_at = new Date().toISOString();
       return { rows: [event], rowCount: 1 };
     }
@@ -231,7 +248,7 @@ class InMemoryStore {
     }
 
     // 4. CHECKLIST
-    if (/INSERT INTO event_checklist/i.test(cleanSql) && params.length > 4) {
+    if (false && /INSERT INTO event_checklist/i.test(cleanSql) && params.length > 4) {
       // Bulk insert
       const rows = [];
       const now = new Date().toISOString();
@@ -258,7 +275,7 @@ class InMemoryStore {
     }
 
     if (/INSERT INTO event_checklist/i.test(cleanSql)) {
-      const [eventId, task, category, dueDate] = params;
+      const [eventId, task, category, dueDate, done] = params;
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       const c = {
@@ -267,7 +284,7 @@ class InMemoryStore {
         task,
         category: category || null,
         due_date: dueDate || null,
-        done: false,
+        done: Boolean(done),
         created_at: now,
         updated_at: now,
       };
@@ -303,16 +320,37 @@ class InMemoryStore {
     }
 
     if (/UPDATE event_checklist SET/i.test(cleanSql)) {
-      const id = params[params.length - 1];
+      let id = null;
+      if (/WHERE id = \$1\b/i.test(cleanSql)) {
+        id = params[0];
+      } else {
+        id = params[params.length - 1];
+      }
+
       const item = this.eventChecklist.get(id);
       if (!item) return { rows: [], rowCount: 0 };
 
-      if (/done = COALESCE/i.test(cleanSql)) {
-        const [done, task, dueDate] = params;
-        if (done !== null && done !== undefined) item.done = Boolean(done);
-        if (task) item.task = task;
-        if (dueDate !== undefined) item.due_date = dueDate;
+      const setPartMatch = cleanSql.match(/SET (.+?) WHERE/i);
+      if (setPartMatch) {
+        const clauses = setPartMatch[1].split(',').map((s) => s.trim());
+        clauses.forEach((clause) => {
+          const m = clause.match(/([a-zA-Z0-9_]+)\s*=\s*\$(\d+)/);
+          if (m) {
+            const field = m[1];
+            const paramIdx = parseInt(m[2], 10) - 1;
+            const val = params[paramIdx];
+            if (field === 'done') item.done = Boolean(val);
+            else if (field === 'task') item.task = val;
+            else if (field === 'category') item.category = val;
+            else if (field === 'due_date') item.due_date = val;
+          }
+        });
+      } else {
+        params.forEach((val) => {
+          if (typeof val === 'boolean') item.done = val;
+        });
       }
+
       item.updated_at = new Date().toISOString();
       return { rows: [item], rowCount: 1 };
     }
@@ -320,7 +358,7 @@ class InMemoryStore {
     if (/DELETE FROM event_checklist WHERE id =/i.test(cleanSql)) {
       const id = params[0];
       const existed = this.eventChecklist.delete(id);
-      return { rows: [], rowCount: existed ? 1 : 0 };
+      return { rows: existed ? [{ id }] : [], rowCount: existed ? 1 : 0 };
     }
 
     // 5. BOOKINGS

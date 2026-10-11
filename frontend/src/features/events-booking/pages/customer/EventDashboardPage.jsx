@@ -399,17 +399,8 @@ export function EventDashboardPage({
                     type="button"
                     className="eb-btn eb-btn-secondary eb-btn-sm"
                     onClick={() => {
-                      if (onFindVendors) {
-                        onFindVendors({
-                          category: cat,
-                          city: currentEvent.city,
-                          availableOn: currentEvent.event_date ? currentEvent.event_date.split('T')[0] : '',
-                          eventId: currentEvent.id,
-                        });
-                      } else {
-                        setSelectedVendorCategory(cat);
-                        setIsBookVendorOpen(true);
-                      }
+                      setSelectedVendorCategory(cat);
+                      setIsBookVendorOpen(true);
                     }}
                   >
                     Find {cat} ➔
@@ -482,7 +473,14 @@ export function EventDashboardPage({
                 <ChecklistItem
                   key={item.id}
                   item={item}
-                  onToggle={toggleItem}
+                  onToggle={async (id) => {
+                    try {
+                      await toggleItem(id);
+                      refetchDash();
+                    } catch (err) {
+                      console.error('Checklist toggle error:', err);
+                    }
+                  }}
                   onEdit={(it) => {
                     setTaskToEdit({ ...it });
                     setIsEditTaskOpen(true);

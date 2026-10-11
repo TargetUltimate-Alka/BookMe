@@ -43,7 +43,11 @@ class BookingRepository {
     ];
 
     const res = client ? await client.query(sql, params) : await query(sql, params);
-    return res.rows[0];
+    const row = res.rows[0];
+    if (row && bookingData.items) {
+      row.items = bookingData.items;
+    }
+    return row;
   }
 
   async findById(id, client = null) {

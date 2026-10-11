@@ -56,6 +56,12 @@ class BookingService {
     try {
       await client.query('BEGIN');
 
+      const effectivePrice =
+        data.custom_price !== undefined && Number(data.custom_price) > 0
+          ? Number(data.custom_price)
+          : vendorValidation.price;
+      const effectivePackageName = data.custom_package_name || vendorValidation.packageName;
+
       // 5. Insert Booking record
       const booking = await bookingRepository.createBooking(
         {
@@ -67,9 +73,10 @@ class BookingService {
           category: category || vendorValidation.category || null,
           bookingDate,
           vendorNameSnapshot: vendorValidation.vendorName,
-          packageNameSnapshot: vendorValidation.packageName,
-          priceSnapshot: vendorValidation.price,
+          packageNameSnapshot: effectivePackageName,
+          priceSnapshot: effectivePrice,
           vendorResponseDueAt,
+          items: data.items || [],
         },
         client
       );
@@ -93,6 +100,7 @@ class BookingService {
       return {
         ...booking,
         price_snapshot: Number(booking.price_snapshot),
+        items: data.items || booking.items || [],
       };
     } catch (err) {
       await client.query('ROLLBACK');

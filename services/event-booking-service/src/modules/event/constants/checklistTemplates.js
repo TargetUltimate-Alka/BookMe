@@ -54,17 +54,17 @@ const CHECKLIST_TEMPLATES = {
  */
 function generateDefaultChecklist(eventType, eventDateStr) {
   const templates = CHECKLIST_TEMPLATES[eventType] || CHECKLIST_TEMPLATES.Other;
-  const eventDate = new Date(eventDateStr);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const eventDatePart = typeof eventDateStr === 'string' ? eventDateStr.split('T')[0] : new Date(eventDateStr).toISOString().split('T')[0];
+  const eventDate = new Date(eventDatePart);
 
   return templates.map((tmpl) => {
     const targetDate = new Date(eventDate);
     targetDate.setDate(targetDate.getDate() - tmpl.offsetDays);
+    const targetStr = targetDate.toISOString().split('T')[0];
 
     // If offset lands before today, constrain due date to today
-    const dueDate = targetDate < now ? now : targetDate;
-    const formattedDue = dueDate.toISOString().split('T')[0];
+    const formattedDue = targetStr < todayStr ? todayStr : targetStr;
 
     return {
       task: tmpl.task,
