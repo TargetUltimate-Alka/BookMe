@@ -1,0 +1,18 @@
+# Netlify Configuration for BookMe Monorepo
+
+[build]
+  # Navigate to the frontend directory
+  base = "frontend"
+  # Directory where Vite outputs the production build
+  publish = "dist"
+  # Command to install and build
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Redirect all routing requests to index.html for React SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
