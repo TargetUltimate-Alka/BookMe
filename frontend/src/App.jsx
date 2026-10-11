@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import {
   MyEventsPage,
@@ -15,31 +15,38 @@ import {
   setAuthContext,
 } from "./features/events-booking/index.js";
 import { VendorDiscovery, VendorDashboard } from "./features/vendor/index.js";
+import {
+  AuthProvider,
+  useAuth,
+  AuthPage,
+  UserProfileModal,
+} from "./features/auth/index.js";
 
-export default function App() {
+function AppContent() {
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
+
   const [currentView, setCurrentView] = useState("events");
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  const [activeRole, setActiveRole] = useState("customer"); // 'customer' | 'vendor' | 'admin'
-
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [vendorToBook, setVendorToBook] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  const handleRoleChange = (role) => {
-    setActiveRole(role);
-    if (role === "customer") {
-      setAuthContext("usr_123", "customer");
-      setCurrentView("events");
-    } else if (role === "vendor") {
-      setAuthContext("vnd_456", "vendor");
-      setCurrentView("vendor-portal");
-    } else if (role === "admin") {
-      setAuthContext("admin_1", "admin");
-      setCurrentView("admin-bookings");
+  // Sync active view and client context whenever authenticated user changes
+  useEffect(() => {
+    if (user && user.id) {
+      setAuthContext(user.id, user.role);
+      if (user.role === "vendor") {
+        setCurrentView("vendor-portal");
+      } else if (user.role === "admin") {
+        setCurrentView("admin-bookings");
+      } else {
+        setCurrentView("events");
+      }
     }
-  };
+  }, [user]);
 
   const handleBookNow = (catalogItem) => {
     setVendorToBook({
@@ -52,6 +59,47 @@ export default function App() {
     setIsBookModalOpen(true);
   };
 
+  // 1. Initial authentication loading state
+  if (isLoading) {
+    return (
+      <div className="page-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="brand-mark" style={{ margin: "0 auto 1.5rem auto", width: 56, height: 56, fontSize: 24 }}>B</div>
+          <p style={{ fontWeight: 600, color: "#4b5563" }}>Verifying BookMe session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated State: Show Authentication Portal
+  if (!isAuthenticated) {
+    return (
+      <div className="page-shell">
+        <header className="topbar">
+          <div className="brand-wrap">
+            <div className="brand-mark">B</div>
+            <div>
+              <p className="brand-name">BookMe</p>
+              <span className="brand-subtitle">Event Operating Platform</span>
+            </div>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontSize: "0.8125rem", color: "#64748b", fontWeight: 600 }}>
+              🔒 Identity & Role Access
+            </span>
+          </div>
+        </header>
+
+        <main className="content-area">
+          <AuthPage />
+        </main>
+      </div>
+    );
+  }
+
+  const activeRole = user.role; // Real authenticated role ('customer' | 'vendor' | 'admin')
+
+  // 3. Authenticated State: Full BookMe Application
   return (
     <div className="page-shell">
       <header className="topbar">
@@ -64,14 +112,13 @@ export default function App() {
           }}
         >
           <div className="brand-mark">B</div>
-
           <div>
             <p className="brand-name">BookMe</p>
             <span className="brand-subtitle">Event Operating Platform</span>
           </div>
         </div>
 
-        {/* Dynamic Navigation Tabs based on Role */}
+        {/* Dynamic Navigation Tabs strictly based on authenticated role */}
         <nav className="main-nav" aria-label="Main navigation">
           {activeRole === "customer" && (
             <>
@@ -142,63 +189,48 @@ export default function App() {
           )}
         </nav>
 
-        {/* Role Switcher & Action */}
+        {/* Topbar User Profile & Actions */}
         <div className="topbar-actions" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          {/* User Profile Badge */}
           <div
+            onClick={() => setIsProfileModalOpen(true)}
             style={{
               display: "flex",
               alignItems: "center",
-              background: "#f3f4f6",
-              borderRadius: "8px",
-              padding: "0.2rem",
-              border: "1px solid #e5e7eb",
+              gap: "0.55rem",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "10px",
+              padding: "0.3rem 0.65rem",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
             }}
+            title="Click to view or edit profile"
           >
-            <button
-              type="button"
-              onClick={() => handleRoleChange("customer")}
+            <div
               style={{
-                background: activeRole === "customer" ? "#ffffff" : "transparent",
-                color: activeRole === "customer" ? "#4f46e5" : "#6b7280",
-                fontWeight: activeRole === "customer" ? 700 : 500,
-                boxShadow: activeRole === "customer" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                borderRadius: "6px",
-                padding: "0.3rem 0.6rem",
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                background: activeRole === "vendor" ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "linear-gradient(135deg, #4f46e5, #6366f1)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 fontSize: "0.75rem",
+                fontWeight: 700,
               }}
             >
-              👤 Customer
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleChange("vendor")}
-              style={{
-                background: activeRole === "vendor" ? "#ffffff" : "transparent",
-                color: activeRole === "vendor" ? "#4f46e5" : "#6b7280",
-                fontWeight: activeRole === "vendor" ? 700 : 500,
-                boxShadow: activeRole === "vendor" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                borderRadius: "6px",
-                padding: "0.3rem 0.6rem",
-                fontSize: "0.75rem",
-              }}
-            >
-              🏢 Vendor
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleChange("admin")}
-              style={{
-                background: activeRole === "admin" ? "#ffffff" : "transparent",
-                color: activeRole === "admin" ? "#4f46e5" : "#6b7280",
-                fontWeight: activeRole === "admin" ? 700 : 500,
-                boxShadow: activeRole === "admin" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                borderRadius: "6px",
-                padding: "0.3rem 0.6rem",
-                fontSize: "0.75rem",
-              }}
-            >
-              🛡️ Admin
-            </button>
+              {user.name ? user.name[0].toUpperCase() : "U"}
+            </div>
+            <div style={{ textAlign: "left", lineHeight: 1.15 }}>
+              <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1e293b", maxWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {user.name}
+              </div>
+              <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "#64748b", textTransform: "capitalize" }}>
+                {activeRole === "vendor" ? "🏢 Vendor" : "👤 Customer"}
+              </div>
+            </div>
           </div>
 
           {activeRole === "customer" && (
@@ -220,6 +252,24 @@ export default function App() {
               Marketplace Preview
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={logout}
+            style={{
+              background: "transparent",
+              border: "1px solid #e2e8f0",
+              color: "#64748b",
+              borderRadius: "8px",
+              padding: "0.4rem 0.65rem",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            title="Sign out of BookMe"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
@@ -335,7 +385,6 @@ export default function App() {
           <VendorDiscovery
             onSelectVendor={(v) => handleBookNow(v)}
             onOpenVendorPortal={() => {
-              handleRoleChange("vendor");
               setCurrentView("vendor-portal");
             }}
           />
@@ -360,6 +409,20 @@ export default function App() {
           }}
         />
       )}
+
+      {/* User Profile / Account Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
