@@ -109,6 +109,12 @@ internalRouter.get(
   bookingController.getInternalBooking
 );
 
+internalRouter.patch(
+  '/bookings/:id/confirm',
+  internalAuth,
+  bookingController.confirmBookingPayment
+);
+
 module.exports = {
   bookingRouter,
   adminRouter,

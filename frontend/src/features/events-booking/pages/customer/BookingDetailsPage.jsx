@@ -7,6 +7,7 @@ import { BookingTimeline } from '../../components/BookingTimeline.jsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
 import { Spinner } from '../../components/Spinner.jsx';
 import { EmptyState } from '../../components/EmptyState.jsx';
+import { PaymentCheckoutModal, ReviewModal, ComplaintModal } from '../../../payments-reviews/index.js';
 
 export function BookingDetailsPage({
   bookingId,
@@ -16,6 +17,9 @@ export function BookingDetailsPage({
   const { booking, loading, error, refetch } = useBooking(bookingId);
   const { cancelBooking, actionLoading } = useBookingActions();
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState('');
 
   // Payment Countdown timer for ACCEPTED status
@@ -105,12 +109,7 @@ export function BookingDetailsPage({
   };
 
   const handleSimulatePayment = () => {
-    // In local demo mode, triggers payment success
-    if (onPaymentSuccess) {
-      onPaymentSuccess(booking);
-    } else {
-      alert('Simulating payment completion. In full deployment, this routes to payment-feedback-service checkout.');
-    }
+    setIsPaymentModalOpen(true);
   };
 
   return (
@@ -257,7 +256,7 @@ export function BookingDetailsPage({
                 <button
                   type="button"
                   className="eb-btn eb-btn-secondary eb-btn-sm"
-                  onClick={() => alert(`Redirecting to Review form for ${vendorName}`)}
+                  onClick={() => setIsReviewModalOpen(true)}
                 >
                   ⭐ Write Review
                 </button>
@@ -267,7 +266,7 @@ export function BookingDetailsPage({
                 <button
                   type="button"
                   className="eb-btn eb-btn-ghost eb-btn-sm"
-                  onClick={() => alert('Redirecting to dispute resolution / complaint form.')}
+                  onClick={() => setIsComplaintModalOpen(true)}
                 >
                   Raise Complaint
                 </button>
@@ -367,6 +366,36 @@ export function BookingDetailsPage({
         requireReason={true}
         reasonPlaceholder="State cancellation reason..."
         loading={actionLoading}
+      />
+
+      {/* Payment Authentication Checkout Modal */}
+      <PaymentCheckoutModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        booking={booking}
+        onPaymentSuccess={(confirmedBkg) => {
+          setIsPaymentModalOpen(false);
+          refetch();
+          if (onPaymentSuccess) {
+            onPaymentSuccess(confirmedBkg);
+          }
+        }}
+      />
+
+      {/* Write Vendor Review Modal */}
+      <ReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        booking={booking}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Dispute & Complaint Modal */}
+      <ComplaintModal
+        isOpen={isComplaintModalOpen}
+        onClose={() => setIsComplaintModalOpen(false)}
+        booking={booking}
+        onSuccess={() => refetch()}
       />
     </div>
   );

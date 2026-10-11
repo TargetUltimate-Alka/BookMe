@@ -83,6 +83,21 @@ class BookingController {
       next(err);
     }
   }
+
+  async confirmBookingPayment(req, res, next) {
+    try {
+      const { paymentId, amount } = req.body;
+      const { handlePaymentCompleted } = require('../events/consumers');
+      await handlePaymentCompleted({
+        bookingId: req.params.id,
+        paymentId,
+        amount,
+      });
+      res.status(200).json({ success: true, bookingId: req.params.id, status: 'CONFIRMED' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new BookingController();
