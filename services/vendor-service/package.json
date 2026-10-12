@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "node test/integration.test.js"
+    "test": "node tests/demoData.test.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.6.0",
