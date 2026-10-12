@@ -9,6 +9,7 @@ const createTablesQuery = `
     description TEXT,
     location VARCHAR(255),
     verified BOOLEAN DEFAULT FALSE,
+    is_demo BOOLEAN DEFAULT FALSE,
     rating NUMERIC(3, 2) DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
@@ -42,12 +43,12 @@ const createTablesQuery = `
   );
 
   -- Seed Default Verified Vendors (Idempotent)
-  INSERT INTO vendors (id, user_id, business_name, category, description, location, verified, rating)
+  INSERT INTO vendors (id, user_id, business_name, category, description, location, verified, is_demo, rating)
   VALUES 
-    ('vnd_sunset_caterers', 'usr_sunset_01', 'Sunset Royal Caterers & Event Crafters', 'catering', 'Specialized in royal destination wedding buffets, multi-cuisine live counters, and artisanal mocktail lounges.', 'SG Highway, Ahmedabad, India', TRUE, 4.96),
-    ('vnd_dream_clicks', 'usr_dream_02', 'Dream Clicks Cinematic Studio', 'photography', 'Award-winning candid wedding storytellers, cinematic 4K highlight reels, drone aerial shoots.', 'Vastrapur, Ahmedabad, India', TRUE, 4.90),
-    ('vnd_aura_decors', 'usr_aura_03', 'Aura Luxury Stage & Floral Decors', 'decoration', 'Grand entrance floral arches, dynamic LED tunnel stages, and royal wedding mandap setups.', 'Bodakdev, Ahmedabad, India', TRUE, 4.85),
-    ('vnd_electra_dj', 'usr_electra_04', 'Electra DJ & Sound Innovations', 'dj', 'High-energy club DJ setups, celebrity sangeet nights, JBL line array sound & intelligent CO2 fog jets.', 'Prahlad Nagar, Ahmedabad, India', TRUE, 4.95)
+    ('vnd_sunset_caterers', 'usr_sunset_01', 'Sunset Royal Caterers & Event Crafters', 'catering', 'Specialized in royal destination wedding buffets, multi-cuisine live counters, and artisanal mocktail lounges.', 'SG Highway, Ahmedabad, India', TRUE, FALSE, 4.96),
+    ('vnd_dream_clicks', 'usr_dream_02', 'Dream Clicks Cinematic Studio', 'photography', 'Award-winning candid wedding storytellers, cinematic 4K highlight reels, drone aerial shoots.', 'Vastrapur, Ahmedabad, India', TRUE, FALSE, 4.90),
+    ('vnd_aura_decors', 'usr_aura_03', 'Aura Luxury Stage & Floral Decors', 'decoration', 'Grand entrance floral arches, dynamic LED tunnel stages, and royal wedding mandap setups.', 'Bodakdev, Ahmedabad, India', TRUE, FALSE, 4.85),
+    ('vnd_electra_dj', 'usr_electra_04', 'Electra DJ & Sound Innovations', 'dj', 'High-energy club DJ setups, celebrity sangeet nights, JBL line array sound & intelligent CO2 fog jets.', 'Prahlad Nagar, Ahmedabad, India', TRUE, FALSE, 4.95)
   ON CONFLICT (id) DO NOTHING;
 
   -- Seed Services
