@@ -3,351 +3,313 @@ const app = require('../src/app');
 const inMemoryStore = require('../src/db/inMemoryStore');
 const config = require('../src/config');
 const jwt = require('jsonwebtoken');
+const { defaultSmsSender } = require('../src/services/smsSender');
+const { hashPhone, decrypt } = require('../src/services/encryptionService');
 
-describe('Auth Service Tests (contracts/auth-service.md compliance)', () => {
+describe('FR-ONB-01, FR-ONB-02 & FR-ADM-01: Authentication, Token & Role Lifecycle', () => {
   beforeEach(() => {
-    // Reset in-memory store for isolation
     inMemoryStore.reset();
+    defaultSmsSender.clear();
   });
 
-  describe('POST /api/auth/register', () => {
-    it('1. Successfully registers a customer', async () => {
+  const validPhone = '+919876543210';
+  const vendorPhone = '+919876543211';
+
+  async function getVerificationToken(phone) {
+    await request(app).post('/v1/auth/otp/send').send({ phone });
+    const messages = defaultSmsSender.getSentMessages();
+    const sentOtp = messages[messages.length - 1].otp;
+    const res = await request(app).post('/v1/auth/otp/verify').send({ phone, otp: sentOtp });
+    return res.body.verificationToken;
+  }
+
+  describe('POST /v1/auth/register', () => {
+    it('FR-ONB-01-T10: Successfully registers customer with valid phone & verificationToken', async () => {
+      const verificationToken = await getVerificationToken(validPhone);
+
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/v1/auth/register')
         .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
+          phone: validPhone,
+          verificationToken,
+          name: 'Priya Sharma',
+          email: 'priya@example.com',
+          password: 'SecurePassword123!',
           role: 'customer',
+          acceptLiabilityTerms: true,
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.id).toMatch(/^usr_/);
-      expect(res.body.name).toBe('Jane Doe');
-      expect(res.body.email).toBe('jane@example.com');
+      expect(res.body.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(res.body.name).toBe('Priya Sharma');
       expect(res.body.role).toBe('customer');
-      expect(res.body.createdAt).toBeDefined();
-      expect(res.body.password_hash).toBeUndefined();
-      expect(res.body.password).toBeUndefined();
+      expect(res.body.accessToken).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
+      expect(res.body.expiresIn).toBe(config.jwtExpiresIn);
+
+      // Verify JWT claims
+      const decoded = jwt.verify(res.body.accessToken, config.jwtSecret);
+      expect(decoded.sub).toBe(res.body.id);
+      expect(decoded.role).toBe('customer');
+
+      // Verify phone is encrypted at rest
+      const user = await inMemoryStore.findUserById(res.body.id);
+      expect(user.phone_encrypted).not.toBe(validPhone);
+      expect(decrypt(user.phone_encrypted)).toBe(validPhone);
+      expect(user.phone_hash).toBe(hashPhone(validPhone));
     });
 
-    it('2. Successfully registers a vendor', async () => {
+    it('FR-ONB-02-T1: Successfully registers vendor and records account', async () => {
+      const verificationToken = await getVerificationToken(vendorPhone);
+
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/v1/auth/register')
         .send({
-          name: 'Grand Caterer',
-          email: 'caterer@example.com',
-          password: 'secretpassword',
+          phone: vendorPhone,
+          verificationToken,
+          name: 'Grand Royal Banquet',
+          email: 'banquet@example.com',
+          password: 'VendorSecure123!',
           role: 'vendor',
         });
 
       expect(res.status).toBe(201);
       expect(res.body.role).toBe('vendor');
-      expect(res.body.name).toBe('Grand Caterer');
+      expect(res.body.name).toBe('Grand Royal Banquet');
     });
 
-    it('3. Rejects invalid registration data', async () => {
+    it('FR-ADM-01-T1: Rejects registration without valid verificationToken with 400', async () => {
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/v1/auth/register')
         .send({
-          name: 'J',
-          email: 'invalid-email',
-          password: '123',
+          phone: validPhone,
+          verificationToken: 'tok_fake_token',
+          name: 'Fake Token User',
+          password: 'SecurePassword123!',
           role: 'customer',
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      expect(res.body.error.details.length).toBeGreaterThan(0);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
     });
 
-    it('4. Rejects duplicate email with 409 Conflict', async () => {
-      // First registration
-      await request(app)
-        .post('/api/auth/register')
+    it('FR-ONB-01-T11: Rejects passwords shorter than 8 characters', async () => {
+      const verificationToken = await getVerificationToken(validPhone);
+
+      const res = await request(app)
+        .post('/v1/auth/register')
         .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
+          phone: validPhone,
+          verificationToken,
+          name: 'Short Pwd User',
+          password: 'short',
           role: 'customer',
         });
 
-      // Second registration with same email (case-insensitive)
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Another Jane',
-          email: 'JANE@example.com',
-          password: 'differentpassword',
-          role: 'customer',
-        });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('FR-ONB-01-T12: Rejects duplicate phone registration with 409 CONFLICT', async () => {
+      const tok1 = await getVerificationToken(validPhone);
+      await request(app).post('/v1/auth/register').send({
+        phone: validPhone,
+        verificationToken: tok1,
+        name: 'First User',
+        password: 'SecurePassword123!',
+        role: 'customer',
+      });
+
+      // Clear cooldown to get another verification token
+      const pHash = hashPhone(validPhone);
+      const otpRec = await inMemoryStore.getLatestOtp(pHash);
+      otpRec.cooldown_until = new Date(Date.now() - 1000).toISOString();
+
+      const tok2 = await getVerificationToken(validPhone);
+      const res = await request(app).post('/v1/auth/register').send({
+        phone: validPhone,
+        verificationToken: tok2,
+        name: 'Second User',
+        password: 'AnotherPassword123!',
+        role: 'customer',
+      });
 
       expect(res.status).toBe(409);
-      expect(res.body.error.code).toBe('EMAIL_ALREADY_EXISTS');
-    });
-
-    it('5. Rejects admin registration in V1 with 400', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Admin User',
-          email: 'admin@example.com',
-          password: 'supersecretadmin',
-          role: 'admin',
-        });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      expect(res.body.error.details[0].field).toBe('role');
+      expect(res.body.code).toBe('CONFLICT');
     });
   });
 
-  describe('POST /api/auth/login', () => {
+  describe('POST /v1/auth/login', () => {
     beforeEach(async () => {
-      await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
-          role: 'customer',
-        });
+      const tok = await getVerificationToken(validPhone);
+      await request(app).post('/v1/auth/register').send({
+        phone: validPhone,
+        verificationToken: tok,
+        name: 'Login Test User',
+        email: 'login@example.com',
+        password: 'CorrectPassword123!',
+        role: 'customer',
+      });
     });
 
-    it('6. Successfully logs in and returns access token & refresh token', async () => {
+    it('FR-ONB-01-T13: Successfully logs in with phone and password', async () => {
       const res = await request(app)
-        .post('/api/auth/login')
+        .post('/v1/auth/login')
         .send({
-          email: 'jane@example.com',
-          password: 'password123',
+          phone: validPhone,
+          password: 'CorrectPassword123!',
         });
 
       expect(res.status).toBe(200);
       expect(res.body.accessToken).toBeDefined();
       expect(res.body.refreshToken).toBeDefined();
-      expect(res.body.expiresIn).toBe(900);
-      expect(res.body.user).toEqual({
-        id: expect.stringMatching(/^usr_/),
-        name: 'Jane Doe',
-        role: 'customer',
-      });
-
-      // Verify JWT claims
-      const decoded = jwt.verify(res.body.accessToken, config.jwtSecret);
-      expect(decoded.sub).toBe(res.body.user.id);
-      expect(decoded.role).toBe('customer');
-      expect(decoded.exp - decoded.iat).toBe(900);
+      expect(res.body.expiresIn).toBe(config.jwtExpiresIn);
+      expect(res.body.user.role).toBe('customer');
     });
 
-    it('7. Returns 401 for incorrect password', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'jane@example.com',
-          password: 'wrongpassword',
-        });
+    it('FR-ONB-01-T14: Anti-enumeration: returns identical 401 for unregistered phone vs incorrect password', async () => {
+      const resWrongPwd = await request(app)
+        .post('/v1/auth/login')
+        .send({ phone: validPhone, password: 'WrongPassword999!' });
 
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
-    });
+      const resUnknownPhone = await request(app)
+        .post('/v1/auth/login')
+        .send({ phone: '+919999999999', password: 'AnyPassword123!' });
 
-    it('8. Returns 401 for non-existent email', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'nonexistent@example.com',
-          password: 'password123',
-        });
-
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(resWrongPwd.status).toBe(401);
+      expect(resUnknownPhone.status).toBe(401);
+      expect(resWrongPwd.body.code).toBe('UNAUTHORIZED');
+      expect(resUnknownPhone.body.code).toBe('UNAUTHORIZED');
+      expect(resWrongPwd.body.message).toBe('Invalid credentials');
+      expect(resUnknownPhone.body.message).toBe('Invalid credentials');
     });
   });
 
-  describe('POST /api/auth/refresh', () => {
-    let refreshToken;
+  describe('POST /v1/auth/refresh & Token Reuse Detection', () => {
+    let initialRefreshToken;
+    let userId;
 
     beforeEach(async () => {
-      await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
-          role: 'customer',
-        });
-
-      const loginRes = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'jane@example.com',
-          password: 'password123',
-        });
-
-      refreshToken = loginRes.body.refreshToken;
+      const tok = await getVerificationToken(validPhone);
+      const reg = await request(app).post('/v1/auth/register').send({
+        phone: validPhone,
+        verificationToken: tok,
+        name: 'Token User',
+        password: 'Password123!',
+        role: 'customer',
+      });
+      initialRefreshToken = reg.body.refreshToken;
+      userId = reg.body.id;
     });
 
-    it('9. Issues new access token with valid refresh token', async () => {
+    it('FR-ONB-01-T15: Rotates refresh token and returns new access token', async () => {
       const res = await request(app)
-        .post('/api/auth/refresh')
-        .send({ refreshToken });
+        .post('/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
 
       expect(res.status).toBe(200);
       expect(res.body.accessToken).toBeDefined();
-      expect(res.body.expiresIn).toBe(900);
+      expect(res.body.expiresIn).toBe(config.jwtExpiresIn);
+
+      const decoded = jwt.verify(res.body.accessToken, config.jwtSecret);
+      expect(decoded.sub).toBe(userId);
     });
 
-    it('10. Rejects invalid refresh token with 401', async () => {
-      const res = await request(app)
-        .post('/api/auth/refresh')
-        .send({ refreshToken: 'completely_bogus_token' });
+    it('FR-ONB-01-T16: Token reuse detection revokes entire token family', async () => {
+      // First refresh succeeds (revokes initialRefreshToken)
+      await request(app)
+        .post('/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
 
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('INVALID_REFRESH_TOKEN');
+      // Attacker replays initialRefreshToken (REUSE DETECTED!)
+      const replayRes = await request(app)
+        .post('/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
+
+      expect(replayRes.status).toBe(401);
+      expect(replayRes.body.code).toBe('UNAUTHORIZED');
+      expect(replayRes.body.message).toMatch(/reuse detected/i);
     });
   });
 
-  describe('Protected Endpoints (/me, /logout)', () => {
+  describe('Session & Profile Endpoints (/me, /logout, /internal)', () => {
     let accessToken;
     let refreshToken;
     let userId;
 
     beforeEach(async () => {
-      const reg = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
-          role: 'customer',
-        });
+      const tok = await getVerificationToken(validPhone);
+      const reg = await request(app).post('/v1/auth/register').send({
+        phone: validPhone,
+        verificationToken: tok,
+        name: 'Profile User',
+        email: 'profile@example.com',
+        password: 'Password123!',
+        role: 'customer',
+      });
+      accessToken = reg.body.accessToken;
+      refreshToken = reg.body.refreshToken;
       userId = reg.body.id;
-
-      const login = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'jane@example.com',
-          password: 'password123',
-        });
-      accessToken = login.body.accessToken;
-      refreshToken = login.body.refreshToken;
     });
 
-    it('11. Returns 401 for unauthenticated request to /me', async () => {
-      const res = await request(app).get('/api/auth/me');
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('MISSING_AUTH_TOKEN');
-    });
-
-    it('12. Returns 401 for expired or invalid access token', async () => {
-      // Fake expired token
-      const expiredToken = jwt.sign(
-        { sub: userId, role: 'customer' },
-        config.jwtSecret,
-        { expiresIn: -10 }
-      );
-
+    it('FR-ONB-01-T17: Successfully logs out and revokes refresh tokens (204 No Content)', async () => {
       const res = await request(app)
-        .get('/api/auth/me')
-        .set('Authorization', `Bearer ${expiredToken}`);
+        .post('/v1/auth/logout')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ refreshToken });
 
-      expect(res.status).toBe(401);
-      expect(res.body.error.code).toBe('TOKEN_EXPIRED');
+      expect(res.status).toBe(204);
+
+      // Attempting to use refreshToken after logout fails
+      const refreshRes = await request(app)
+        .post('/v1/auth/refresh')
+        .send({ refreshToken });
+      expect(refreshRes.status).toBe(401);
     });
 
-    it('13. Successfully fetches user profile on GET /me', async () => {
+    it('FR-ONB-01-T18: GET /v1/auth/me returns profile with decrypted phone number', async () => {
       const res = await request(app)
-        .get('/api/auth/me')
+        .get('/v1/auth/me')
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(userId);
-      expect(res.body.name).toBe('Jane Doe');
-      expect(res.body.email).toBe('jane@example.com');
+      expect(res.body.phone).toBe(validPhone); // Decrypted!
+      expect(res.body.email).toBe('profile@example.com');
+      expect(res.body.status).toBe('ACTIVE');
       expect(res.body.role).toBe('customer');
     });
 
-    it('14. Successfully updates user name on PATCH /me', async () => {
+    it('FR-ONB-01-T19: PATCH /v1/auth/me updates name and email', async () => {
       const res = await request(app)
-        .patch('/api/auth/me')
+        .patch('/v1/auth/me')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ name: 'Jane D. Doe' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.name).toBe('Jane D. Doe');
-
-      // Verify persistence via GET /me
-      const checkRes = await request(app)
-        .get('/api/auth/me')
-        .set('Authorization', `Bearer ${accessToken}`);
-
-      expect(checkRes.body.name).toBe('Jane D. Doe');
-    });
-
-    it('15. Successfully logs out and revokes refresh token on POST /logout', async () => {
-      const logoutRes = await request(app)
-        .post('/api/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({ refreshToken });
-
-      expect(logoutRes.status).toBe(204);
-
-      // Verify that using the revoked refresh token now fails with 401
-      const refreshRes = await request(app)
-        .post('/api/auth/refresh')
-        .send({ refreshToken });
-
-      expect(refreshRes.status).toBe(401);
-      expect(refreshRes.body.error.code).toBe('INVALID_REFRESH_TOKEN');
-    });
-  });
-
-  describe('Internal Service Endpoint (GET /api/internal/users/:id)', () => {
-    let userId;
-
-    beforeEach(async () => {
-      const reg = await request(app)
-        .post('/api/auth/register')
         .send({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          password: 'password123',
-          role: 'vendor',
+          name: 'Updated Name',
+          email: 'newemail@example.com',
         });
-      userId = reg.body.id;
-    });
-
-    it('16. Successfully returns internal user lookup with valid X-Internal-Key', async () => {
-      const res = await request(app)
-        .get(`/api/internal/users/${userId}`)
-        .set('X-Internal-Key', config.internalApiKey);
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({
-        id: userId,
-        name: 'Jane Doe',
-        email: 'jane@example.com',
-        role: 'vendor',
-      });
-      expect(res.body.password_hash).toBeUndefined();
+      expect(res.body.id).toBe(userId);
+      expect(res.body.name).toBe('Updated Name');
+      expect(res.body.email).toBe('newemail@example.com');
     });
 
-    it('17. Rejects internal lookup without valid X-Internal-Key', async () => {
-      const res = await request(app)
-        .get(`/api/internal/users/${userId}`)
-        .set('X-Internal-Key', 'wrong-key');
+    it('FR-ONB-01-T20: GET /v1/internal/users/:id requires X-Internal-Key and returns decrypted phone', async () => {
+      // 1. Without key fails with 403
+      const resNoKey = await request(app).get(`/v1/internal/users/${userId}`);
+      expect(resNoKey.status).toBe(403);
+      expect(resNoKey.body.code).toBe('FORBIDDEN');
 
-      expect(res.status).toBe(403);
-      expect(res.body.error.code).toBe('FORBIDDEN');
-    });
-
-    it('18. Returns 404 for unknown user on internal lookup', async () => {
-      const res = await request(app)
-        .get('/api/internal/users/usr_unknown_999')
+      // 2. With key succeeds
+      const resWithKey = await request(app)
+        .get(`/v1/internal/users/${userId}`)
         .set('X-Internal-Key', config.internalApiKey);
 
-      expect(res.status).toBe(404);
-      expect(res.body.error.code).toBe('USER_NOT_FOUND');
+      expect(resWithKey.status).toBe(200);
+      expect(resWithKey.body.id).toBe(userId);
+      expect(resWithKey.body.phone).toBe(validPhone);
+      expect(resWithKey.body.role).toBe('customer');
     });
   });
 });

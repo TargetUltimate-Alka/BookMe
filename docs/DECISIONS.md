@@ -80,3 +80,37 @@
   - Timers are tracked via database expiration columns (`expires_at`, `payment_due_at`) as the source of truth, backed by RabbitMQ delayed queues (`booking.deadlines`) and a 1-minute fallback sweeper worker.
   - Max 3 counter-offers during negotiation; each counter-offer is valid for 6 hours.
   - Customer cancellation charge ladder (§2.4) is computed by the booking service prior to cancellation confirmation.
+
+### ADR-012: OTP Dispatch Interface & Development SMS Mock (FR-ONB-01)
+- **Context:** The frozen OpenAPI contracts (`identity.yaml`) define `/auth/otp/send` and `/auth/otp/verify` but intentionally do not specify the external SMS gateway mechanism (e.g. Twilio, Gupshup, Fast2SMS). Calling another internal microservice for SMS delivery without a defined event/HTTP contract violates microservice independence.
+- **Decision:**
+  - An internal `SmsSender` interface is created inside `services/auth-service/src/services/smsSender.js`.
+  - A `ConsoleSmsSender` / `MockSmsSender` implementation is registered for local development and integration testing.
+  - OTPs are logged with phone numbers strictly masked (e.g., `+91******3210`).
+  - Production deployments inject the live SMS gateway provider adapter satisfying the `SmsSender` interface without altering any public contract or external service boundaries.
+
+### ADR-013: Distributed Token Verification Standard for Downstream Services
+- **Context:** Microservices (e.g., `vendor-service`, `event-booking-service`, `payment-feedback-service`) must authenticate user requests from JWT Bearer tokens without making a high-latency synchronous HTTP hop to `auth-service` on every API request.
+- **Decision:**
+  - **Algorithm & Secret:** Tokens are signed using HMAC-SHA256 with the shared configuration key `JWT_SECRET` (in production, upgradable to RS256/asymmetric public key verification).
+  - **Token Claims:** Access tokens carry:
+    - `sub`: User UUID string (e.g., `c1f1c8a6-8096-4a57-8984-b040e698ea12`).
+    - `role`: Exactly one of the `UserRole` enums (`customer`, `vendor`, `superAdmin`, `verifier`, `supportAgent`, `financeAdmin`, `contentModerator`).
+    - `iat`: Timestamp issued (seconds).
+    - `exp`: Expiration timestamp (seconds, valid for 900 seconds / 15 minutes).
+  - **Downstream Verification:** Peer microservices verify token signatures locally using `jsonwebtoken.verify(token, JWT_SECRET)` and extract `req.user = { id: decoded.sub, role: decoded.role }`. Peer services MUST NOT query the `auth` database directly.
+
+### ADR-014: Phone Number Encryption at Rest & Deterministic Blind Indexing (FR-ONB-01)
+- **Context:** Under DPDP regulations, personal phone numbers must be encrypted at rest in the database, but user lookup queries (`findByPhone`) must remain fast and indexable without full-table decryption.
+- **Decision:**
+  - Raw phone numbers are encrypted at rest using AES-256-GCM (`phone_encrypted`), producing `iv:authTag:ciphertext`.
+  - A deterministic blind index (`phone_hash`) is generated via HMAC-SHA256 (`crypto.createHmac('sha256', ENCRYPTION_KEY).update(phone).digest('hex')`) and given a UNIQUE index.
+  - All database queries match on `phone_hash`. Decryption occurs only in memory when returning data to authorized profile endpoints (`/auth/me` and `/internal/users/:id`).
+  - Phone numbers are never emitted in plaintext logs or error traces, using the `maskPhone` utility.
+
+### ADR-015: Refresh Token Family Rotation & Reuse Detection (FR-ONB-01)
+- **Context:** Storing refresh tokens in plaintext allows database read compromise to forge sessions. Replay attacks on refresh tokens must be actively neutralized.
+- **Decision:**
+  - Refresh tokens are stored ONLY as SHA-256 hashes in `refresh_tokens.token_hash`.
+  - Every token belongs to a `family_id`. When `/auth/refresh` is called with a valid token, the token is revoked and a new access token is returned.
+  - If a refresh token that was ALREADY revoked is presented, a token reuse attack is detected: the entire token family is revoked immediately (`WHERE family_id = $1`), terminating all active sessions for that user.
