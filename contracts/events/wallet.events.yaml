@@ -1,0 +1,169 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Vendor Wallet & Billing Events
+  version: "1.0.0"
+  description: Vendor wallet threshold alerts, visibility status transitions, qualified lead debits, and cancellation penalty applications (FR-WAL-01..05, FR-COM-04, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  walletLowBalance:
+    address: bookme.events/wallet.low_balance
+    messages:
+      walletLowBalanceMessage:
+        $ref: "#/components/messages/WalletLowBalanceMessage"
+  walletStatusChanged:
+    address: bookme.events/vendor.wallet.status_changed
+    messages:
+      walletStatusChangedMessage:
+        $ref: "#/components/messages/WalletStatusChangedMessage"
+  leadQualified:
+    address: bookme.events/lead.qualified
+    messages:
+      leadQualifiedMessage:
+        $ref: "#/components/messages/LeadQualifiedMessage"
+  penaltyApplied:
+    address: bookme.events/penalty.applied
+    messages:
+      penaltyAppliedMessage:
+        $ref: "#/components/messages/PenaltyAppliedMessage"
+
+components:
+  messages:
+    WalletLowBalanceMessage:
+      name: WalletLowBalance
+      title: Vendor Wallet Low Balance Alert Event
+      summary: Dispatched once per threshold crossing (at 150% and 100% of minimum wallet requirement)
+      payload:
+        type: object
+        required:
+          - vendorId
+          - currentBalancePaise
+          - thresholdLevel
+          - estimatedDaysRemaining
+        properties:
+          vendorId:
+            type: string
+            format: uuid
+          currentBalancePaise:
+            type: integer
+          thresholdLevel:
+            type: string
+            enum:
+              - 150_PERCENT
+              - 100_PERCENT
+          estimatedDaysRemaining:
+            type: integer
+      examples:
+        - name: LowBalanceExample
+          payload:
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            currentBalancePaise: 75000
+            thresholdLevel: "150_PERCENT"
+            estimatedDaysRemaining: 5
+
+    WalletStatusChangedMessage:
+      name: WalletStatusChanged
+      title: Vendor Wallet Status Changed
+      summary: Vendor moved to hidden from search after 48h low-balance grace period, or restored to active upon top-up
+      payload:
+        type: object
+        required:
+          - vendorId
+          - oldStatus
+          - newStatus
+        properties:
+          vendorId:
+            type: string
+            format: uuid
+          oldStatus:
+            type: string
+            enum:
+              - ACTIVE
+              - GRACE_PERIOD
+              - HIDDEN
+          newStatus:
+            type: string
+            enum:
+              - ACTIVE
+              - GRACE_PERIOD
+              - HIDDEN
+      examples:
+        - name: StatusChangeExample
+          payload:
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            oldStatus: "GRACE_PERIOD"
+            newStatus: "HIDDEN"
+
+    LeadQualifiedMessage:
+      name: LeadQualified
+      title: Lead Qualified and Billed Event
+      summary: Connected call >= 30s qualifies as lead; debits wallet fee
+      payload:
+        type: object
+        required:
+          - leadId
+          - callSessionId
+          - vendorId
+          - customerId
+          - feeDebitedPaise
+          - balanceAfterPaise
+        properties:
+          leadId:
+            type: string
+            format: uuid
+          callSessionId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          customerId:
+            type: string
+            format: uuid
+          feeDebitedPaise:
+            type: integer
+          balanceAfterPaise:
+            type: integer
+      examples:
+        - name: LeadQualifiedExample
+          payload:
+            leadId: "a129f1ee-6c54-4b01-90e6-d701748f0811"
+            callSessionId: "b229f1ee-6c54-4b01-90e6-d701748f0822"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            customerId: "e3a89012-3211-4a12-b512-c01928491823"
+            feeDebitedPaise: 2950
+            balanceAfterPaise: 97050
+
+    PenaltyAppliedMessage:
+      name: PenaltyApplied
+      title: Vendor Cancellation Penalty Applied
+      payload:
+        type: object
+        required:
+          - vendorId
+          - bookingId
+          - penaltyPaise
+          - walletDebitedPaise
+          - shortfallDebtPaise
+        properties:
+          vendorId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          penaltyPaise:
+            type: integer
+          walletDebitedPaise:
+            type: integer
+          shortfallDebtPaise:
+            type: integer
+      examples:
+        - name: PenaltyAppliedExample
+          payload:
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            penaltyPaise: 3600000
+            walletDebitedPaise: 100000
+            shortfallDebtPaise: 3500000

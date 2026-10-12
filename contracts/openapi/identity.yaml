@@ -1,0 +1,565 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Identity & Authentication API
+  version: "1.0.0"
+  description: Authentication, OTP verification, user onboarding credentials, and terms acceptance (FR-ONB-01, FR-ONB-04, FR-ONB-05).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /auth/otp/send:
+    post:
+      operationId: sendOtp
+      summary: Send OTP for registration or login
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "new"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[0-9]{10}$"
+                  example: "+919876543210"
+      responses:
+        "200":
+          description: OTP dispatched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  expiresInSeconds:
+                    type: integer
+                    example: 300
+        "400":
+          description: Invalid phone number
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      summary: Verify OTP code
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "new"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - otp
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[0-9]{10}$"
+                  example: "+919876543210"
+                otp:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+                  example: "123456"
+      responses:
+        "200":
+          description: OTP verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                    example: true
+                  verificationToken:
+                    type: string
+                    example: "tok_otp_verified_97483"
+        "400":
+          description: Invalid OTP or account locked after 5 failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      summary: Register a new customer or vendor
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-ONB-01
+        - FR-ONB-05
+      x-change: "modified"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - verificationToken
+                - name
+                - password
+                - role
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[0-9]{10}$"
+                  example: "+919876543210"
+                verificationToken:
+                  type: string
+                  example: "tok_otp_verified_97483"
+                name:
+                  type: string
+                  example: "Aarav Patel"
+                email:
+                  type: string
+                  format: email
+                  example: "aarav@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SecureP@ssw0rd!"
+                role:
+                  $ref: "./common.yaml#/components/schemas/UserRole"
+                acceptLiabilityTerms:
+                  type: boolean
+                  example: true
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    example: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+                  name:
+                    type: string
+                    example: "Aarav Patel"
+                  role:
+                    $ref: "./common.yaml#/components/schemas/UserRole"
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOi..."
+                  refreshToken:
+                    type: string
+                    example: "eyJhbGciOi..."
+                  expiresIn:
+                    type: integer
+                    example: 900
+        "400":
+          description: Validation failure or terms not accepted
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone or email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      summary: User login
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "modified"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - password
+              properties:
+                phone:
+                  type: string
+                  example: "+919876543210"
+                password:
+                  type: string
+                  format: password
+                  example: "SecureP@ssw0rd!"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOi..."
+                  refreshToken:
+                    type: string
+                    example: "eyJhbGciOi..."
+                  expiresIn:
+                    type: integer
+                    example: 900
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                      role:
+                        $ref: "./common.yaml#/components/schemas/UserRole"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh expired access token
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "unmodified"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Refreshed token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+                    example: 900
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      summary: Invalidate current refresh token
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Logged out successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Fetch currently authenticated user profile
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  phone:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    $ref: "./common.yaml#/components/schemas/UserRole"
+                  status:
+                    type: string
+                    example: "ACTIVE"
+                  createdAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateCurrentUser
+      summary: Update profile attributes
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  email:
+                    type: string
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /auth/agreements/accept:
+    post:
+      operationId: acceptTerms
+      summary: Record user acceptance of platform or damage liability terms
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-04
+        - FR-ONB-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agreementType
+                - version
+              properties:
+                agreementType:
+                  type: string
+                  enum:
+                    - CUSTOMER_DAMAGE_LIABILITY
+                    - VENDOR_SERVICE_AGREEMENT
+                version:
+                  type: string
+                  example: "1.0.0"
+      responses:
+        "200":
+          description: Agreement accepted and logged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+                    example: true
+                  acceptedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+  /auth/agreements/status:
+    get:
+      operationId: getAgreementStatus
+      summary: Query whether logged in user has accepted mandatory terms
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-04
+        - FR-ONB-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Agreement status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  damageLiabilityAccepted:
+                    type: boolean
+                  vendorAgreementSigned:
+                    type: boolean
+                  currentAgreementVersion:
+                    type: string
+
+  /internal/users/{id}:
+    get:
+      operationId: getInternalUser
+      summary: Microservice-to-microservice user lookup
+      tags:
+        - Identity
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-ONB-01
+      x-change: "unmodified"
+      security:
+        - internalAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  role:
+                    $ref: "./common.yaml#/components/schemas/UserRole"
+                  phone:
+                    type: string
+                  email:
+                    type: string
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"

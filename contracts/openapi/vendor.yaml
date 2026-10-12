@@ -1,0 +1,623 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Vendor Onboarding & Verification API
+  version: "1.0.0"
+  description: Vendor onboarding, DigiLocker KYC, PAN/Bank penny-drop verification, e-sign agreement, and verification approval workflow (FR-ONB-02..06, FR-VEN-01).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /vendors:
+    post:
+      operationId: createVendorProfile
+      summary: Initialize vendor onboarding profile
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-02
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - businessName
+                - photoUrl
+                - categoryIds
+                - serviceLocation
+                - serviceRadiusKm
+              properties:
+                businessName:
+                  type: string
+                  example: "Sunset Catering & Decor"
+                description:
+                  type: string
+                  example: "Premier wedding catering and decoration services across Gujarat."
+                photoUrl:
+                  type: string
+                  format: uri
+                  example: "https://storage.bookme.com/vendors/photo_123.jpg"
+                categoryIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                serviceLocation:
+                  $ref: "./common.yaml#/components/schemas/Location"
+                serviceRadiusKm:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+                  example: 35
+      responses:
+        "210":
+          description: Vendor profile created in DRAFT state
+        "201":
+          description: Vendor profile initialized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "400":
+          description: Missing required onboarding fields
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+        "409":
+          description: Vendor profile already exists
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /vendors/me:
+    get:
+      operationId: getMyVendorProfile
+      summary: Get logged-in vendor's own profile and onboarding status
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vendor profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+
+    patch:
+      operationId: updateVendorProfile
+      summary: Update vendor business details or service area
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                businessName:
+                  type: string
+                description:
+                  type: string
+                serviceLocation:
+                  $ref: "./common.yaml#/components/schemas/Location"
+                serviceRadiusKm:
+                  type: integer
+      responses:
+        "200":
+          description: Updated vendor profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+
+  /vendors/{id}:
+    get:
+      operationId: getVendorById
+      summary: Fetch public vendor profile by ID
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "modified"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Public vendor profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorPublicProfile"
+        "404":
+          description: Vendor not found
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /vendors/me/kyc/digilocker/start:
+    post:
+      operationId: startDigiLockerKyc
+      summary: Initiate DigiLocker OAuth consent redirect
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: DigiLocker OAuth URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirectUrl:
+                    type: string
+                    format: uri
+                    example: "https://digilocker.merigov.in/oauth/authorize?..."
+                  sessionId:
+                    type: string
+                    example: "dl_sess_97482"
+
+  /vendors/me/kyc/digilocker/callback:
+    post:
+      operationId: handleDigiLockerCallback
+      summary: Handle DigiLocker OAuth callback and store masked verification reference
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - sessionId
+              properties:
+                code:
+                  type: string
+                sessionId:
+                  type: string
+      responses:
+        "200":
+          description: DigiLocker verified; only reference and masked digits stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                    example: true
+                  digilockerRef:
+                    type: string
+                    example: "dl_ref_c491f2..."
+                  maskedAadhaarLast4:
+                    type: string
+                    example: "8921"
+                  verifiedName:
+                    type: string
+                    example: "Aarav K. Patel"
+                  verifiedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+  /vendors/me/kyc/status:
+    get:
+      operationId: getKycStatus
+      summary: Check status of DigiLocker, PAN, and Bank verifications
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: KYC summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  digilockerVerified:
+                    type: boolean
+                  panVerified:
+                    type: boolean
+                  bankVerified:
+                    type: boolean
+                  overallStatus:
+                    $ref: "./common.yaml#/components/schemas/VendorKycStatus"
+
+  /vendors/me/kyc/pan:
+    post:
+      operationId: submitPanVerification
+      summary: Submit PAN details for verified check
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - panNumber
+                - nameOnPan
+              properties:
+                panNumber:
+                  type: string
+                  pattern: "^[A-Z]{5}[0-9]{4}[A-Z]{1}$"
+                  example: "ABCDE1234F"
+                nameOnPan:
+                  type: string
+                  example: "Aarav Patel"
+      responses:
+        "200":
+          description: PAN verification outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  panRef:
+                    type: string
+                  nameMatchScore:
+                    type: number
+                    example: 98.5
+
+  /vendors/me/kyc/bank:
+    post:
+      operationId: submitBankVerification
+      summary: Penny-drop bank verification for escrow payouts
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accountNumber
+                - ifscCode
+                - accountHolderName
+              properties:
+                accountNumber:
+                  type: string
+                  example: "0123456789012"
+                ifscCode:
+                  type: string
+                  example: "HDFC0000123"
+                accountHolderName:
+                  type: string
+                  example: "Aarav Patel"
+      responses:
+        "200":
+          description: Bank penny-drop outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  bankRef:
+                    type: string
+                  registeredName:
+                    type: string
+
+  /vendors/me/agreement/sign:
+    post:
+      operationId: signVendorAgreement
+      summary: E-sign current vendor agreement version with IP and timestamp
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-ONB-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agreementVersion
+                - acknowledgedTerms
+              properties:
+                agreementVersion:
+                  type: string
+                  example: "1.0.0"
+                acknowledgedTerms:
+                  type: boolean
+                  example: true
+      responses:
+        "200":
+          description: Agreement signed and stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signed:
+                    type: boolean
+                    example: true
+                  signedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+                  agreementVersion:
+                    type: string
+
+  /vendors/{id}/verification:
+    get:
+      operationId: getVendorVerificationStatus
+      summary: Query vendor review state
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - vendor
+        - superAdmin
+        - verifier
+      x-requirement-ids:
+        - FR-ONB-06
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Verification status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: "./common.yaml#/components/schemas/VendorKycStatus"
+                  rejectionReason:
+                    type: string
+                    nullable: true
+                  verifiedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+  /admin/vendors/{id}/verification:
+    post:
+      operationId: decideVendorVerification
+      summary: Verifier approve or reject vendor with mandatory reason
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - verifier
+        - superAdmin
+      x-requirement-ids:
+        - FR-ONB-06
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - decision
+                - reason
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - APPROVED
+                    - REJECTED
+                reason:
+                  type: string
+                  example: "All documents valid and penny-drop verified."
+      responses:
+        "200":
+          description: Verification decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: "./common.yaml#/components/schemas/VendorKycStatus"
+                  decidedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+  /internal/vendors/{id}/summary:
+    get:
+      operationId: getInternalVendorSummary
+      summary: Service-to-service vendor snapshot
+      tags:
+        - Vendor
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "unmodified"
+      security:
+        - internalAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Vendor snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  businessName:
+                    type: string
+                  verified:
+                    type: boolean
+                  walletActive:
+                    type: boolean
+
+components:
+  schemas:
+    VendorProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        description:
+          type: string
+        photoUrl:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        serviceLocation:
+          $ref: "./common.yaml#/components/schemas/Location"
+        serviceRadiusKm:
+          type: integer
+        kycStatus:
+          $ref: "./common.yaml#/components/schemas/VendorKycStatus"
+        agreementVersion:
+          type: string
+        averageRating:
+          type: number
+          format: float
+          nullable: true
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    VendorPublicProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        description:
+          type: string
+        photoUrl:
+          type: string
+        city:
+          type: string
+        averageRating:
+          type: number
+          format: float
+        totalReviews:
+          type: integer
+        packagesCount:
+          type: integer
+        mediaUrls:
+          type: array
+          items:
+            type: string

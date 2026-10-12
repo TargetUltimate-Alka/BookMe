@@ -1,0 +1,276 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Search & Discovery API
+  version: "1.0.0"
+  description: High-performance PostGIS radius search, multi-factor filtering, and matching packages extraction (FR-SRCH-01..06, FR-VEN-08).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /search/vendors:
+    get:
+      operationId: searchVendors
+      summary: Search vendors with PostGIS radius, category, price, date, and rating filters
+      tags:
+        - Search
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-SRCH-01
+        - FR-SRCH-02
+        - FR-SRCH-03
+        - FR-SRCH-04
+        - FR-SRCH-06
+      x-change: "modified"
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Partial vendor business name query.
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: minPricePaise
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        - name: maxPricePaise
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        - name: minRating
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 1.0
+            maximum: 5.0
+        - name: hasDiscount
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: latitude
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+          description: Venue latitude for PostGIS radius calculation.
+        - name: longitude
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+          description: Venue longitude for PostGIS radius calculation.
+        - name: radiusKm
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - relevance
+              - rating
+              - price_asc
+              - price_desc
+              - distance
+            default: relevance
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Matching search results with matching packages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SearchResultVendorItem"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+        "400":
+          description: Invalid search parameters
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /search/vendors/{id}:
+    get:
+      operationId: getSearchVendorProfile
+      summary: View full vendor profile from search result
+      tags:
+        - Search
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SRCH-04
+        - FR-VEN-08
+      x-change: "new"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Vendor public profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchVendorDetail"
+
+  /search/vendors/{id}/matching-packages:
+    get:
+      operationId: getMatchingPackages
+      summary: Extract only packages matching the active search query parameters
+      tags:
+        - Search
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SRCH-04
+        - FR-VEN-08
+      x-change: "new"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: date
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: maxPricePaise
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+      responses:
+        "200":
+          description: Matching packages array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchingPackageItem"
+
+components:
+  schemas:
+    SearchResultVendorItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        category:
+          type: string
+        rating:
+          type: number
+          format: float
+        totalReviews:
+          type: integer
+        distanceKm:
+          type: number
+          format: float
+          nullable: true
+        startingPricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        discountAvailable:
+          type: boolean
+        matchingPackages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchingPackageItem"
+
+    MatchingPackageItem:
+      type: object
+      properties:
+        packageId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tier:
+          type: string
+        originalPricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        discountedPricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        pricingUnit:
+          type: string
+        available:
+          type: boolean
+
+    SearchVendorDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        description:
+          type: string
+        rating:
+          type: number
+          format: float
+        totalReviews:
+          type: integer
+        serviceRadiusKm:
+          type: integer
+        city:
+          type: string
+        mediaUrls:
+          type: array
+          items:
+            type: string

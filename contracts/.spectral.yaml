@@ -1,0 +1,7 @@
+extends: "spectral:oas"
+rules:
+  operation-operationId-unique: true
+  operation-tags: true
+  operation-description: false
+  no-$ref-siblings: false
+  oas3-schema: true

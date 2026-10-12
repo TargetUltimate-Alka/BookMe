@@ -1,0 +1,283 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Reviews & Ratings API
+  version: "1.0.0"
+  description: Customer reviews strictly for completed bookings within 14 days, up to 5 photos, vendor public replies, and moderator removal (FR-REV-01..04).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /reviews:
+    post:
+      operationId: createReview
+      summary: Submit review (allowed strictly for COMPLETED bookings within 14 days; rating 1 to 5, text, up to 5 photos)
+      tags:
+        - Review
+      x-owner: "B"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-REV-01
+        - FR-REV-02
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bookingId
+                - rating
+                - text
+              properties:
+                bookingId:
+                  type: string
+                  format: uuid
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  example: 5
+                text:
+                  type: string
+                  example: "Outstanding catering and courteous service. Guests loved the food!"
+                photoUrls:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: uri
+                  default: []
+      responses:
+        "201":
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Booking not yet completed or 14-day window expired
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+        "409":
+          description: Booking already reviewed (only one review per booking allowed)
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /vendors/{vendorId}/reviews:
+    get:
+      operationId: listVendorReviews
+      summary: List verified reviews for a vendor with rating breakdown
+      tags:
+        - Review
+      x-owner: "B"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-REV-01
+      x-change: "unmodified"
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Reviews list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /reviews/{id}/reply:
+    post:
+      operationId: replyToReview
+      summary: Vendor posts one public reply to a review
+      tags:
+        - Review
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-REV-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - replyText
+              properties:
+                replyText:
+                  type: string
+                  example: "Thank you for having us! It was a pleasure serving your guests."
+      responses:
+        "200":
+          description: Reply saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "409":
+          description: Vendor has already replied to this review
+
+  /reviews/{id}/report:
+    post:
+      operationId: reportReview
+      summary: Report abusive or fake review for moderation
+      tags:
+        - Review
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-REV-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Contains false claims and abusive remarks."
+      responses:
+        "200":
+          description: Report recorded and queued for moderation
+
+  /admin/reviews/{id}/moderate:
+    post:
+      operationId: moderateReview
+      summary: Content Moderator removes abusive/fake review with mandatory reason and immutable audit log
+      tags:
+        - Review
+      x-owner: "B"
+      x-roles:
+        - contentModerator
+        - superAdmin
+      x-requirement-ids:
+        - FR-REV-04
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - decision
+                - mandatoryReason
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - APPROVED
+                    - REMOVED
+                mandatoryReason:
+                  type: string
+                  example: "Violates community guidelines on defamatory content."
+      responses:
+        "200":
+          description: Moderation recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+components:
+  schemas:
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        vendorId:
+          type: string
+          format: uuid
+        reviewerNameMasked:
+          type: string
+          example: "Meera S."
+        rating:
+          type: integer
+          example: 5
+        text:
+          type: string
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        vendorReply:
+          type: string
+          nullable: true
+        vendorReplyAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+          nullable: true
+        status:
+          $ref: "./common.yaml#/components/schemas/ModerationStatus"
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

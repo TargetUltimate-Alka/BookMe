@@ -1,0 +1,712 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Event Planner & Checklist API
+  version: "1.0.0"
+  description: Customer event planning, checklist requirements, matching vendor recommendations, coverage summary, and Notify-Me alerts (FR-PLAN-01..04, FR-NOT-02).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /events:
+    post:
+      operationId: createPlannerEvent
+      summary: Create new customer event with venue, date range, and guests
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventInput"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerEvent"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: listPlannerEvents
+      summary: List events created by customer
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Events array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlannerEvent"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /events/{id}:
+    get:
+      operationId: getPlannerEvent
+      summary: Get details of an event
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerEvent"
+
+    patch:
+      operationId: updatePlannerEvent
+      summary: Update event metadata
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                guestCount:
+                  type: integer
+                venueLocation:
+                  $ref: "./common.yaml#/components/schemas/Location"
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerEvent"
+
+    delete:
+      operationId: cancelPlannerEvent
+      summary: Cancel event
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Event cancelled
+
+  /events/{id}/items:
+    post:
+      operationId: addChecklistItem
+      summary: Add requirement item to event checklist
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+        - FR-PLAN-04
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChecklistItemInput"
+      responses:
+        "201":
+          description: Checklist item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChecklistItem"
+
+    get:
+      operationId: listChecklistItems
+      summary: List all checklist requirement items for an event
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Checklist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChecklistItem"
+
+  /events/{id}/items/{itemId}:
+    patch:
+      operationId: updateChecklistItem
+      summary: Update checklist item specification
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: integer
+                durationHours:
+                  type: integer
+                brand:
+                  type: string
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChecklistItem"
+
+    delete:
+      operationId: deleteChecklistItem
+      summary: Remove checklist item from event
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Item removed
+
+  /events/{id}/items/{itemId}/vendors:
+    get:
+      operationId: listMatchingVendorsForItem
+      summary: Find available matching vendors and packages for a checklist item
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Available matching packages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ItemMatchingVendorPackage"
+
+  /events/{id}/coverage:
+    get:
+      operationId: getEventCoverageSummary
+      summary: Coverage summary showing covered and not-covered checklist requirements
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Coverage report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageSummary"
+
+  /notify-me:
+    post:
+      operationId: createNotifyRequest
+      summary: Register Notify-Me alert for an uncovered checklist item or package
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-03
+        - FR-SRCH-05
+        - FR-NOT-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetDate
+              properties:
+                eventItemId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                packageId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                categoryId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                targetDate:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+      responses:
+        "201":
+          description: Notification request registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotifyRequest"
+
+    get:
+      operationId: listNotifyRequests
+      summary: List active Notify-Me alert requests
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-NOT-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active alert requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotifyRequest"
+
+  /notify-me/{id}:
+    delete:
+      operationId: cancelNotifyRequest
+      summary: Cancel Notify-Me request
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-NOT-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Request deleted
+
+  # Deprecated Legacy Budget & Suggestion Endpoints
+  /events/{id}/suggestions:
+    get:
+      deprecated: true
+      operationId: getEventSuggestionsLegacy
+      summary: (Deprecated) Static suggestions
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Legacy suggestions
+
+  /events/{id}/budget:
+    get:
+      deprecated: true
+      operationId: getEventBudgetLegacy
+      summary: (Deprecated) Budget tracking
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Legacy budget
+
+    put:
+      deprecated: true
+      operationId: updateEventBudgetLegacy
+      summary: (Deprecated) Update budget
+      tags:
+        - Planner
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-PLAN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+
+components:
+  schemas:
+    CreateEventInput:
+      type: object
+      required:
+        - name
+        - dateFrom
+        - dateTo
+        - venueLocation
+        - guestCount
+      properties:
+        name:
+          type: string
+          example: "Meera & Siddharth Sangeet"
+        dateFrom:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        dateTo:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        venueLocation:
+          $ref: "./common.yaml#/components/schemas/Location"
+        guestCount:
+          type: integer
+          example: 250
+
+    PlannerEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        dateFrom:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        dateTo:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        venueLocation:
+          $ref: "./common.yaml#/components/schemas/Location"
+        guestCount:
+          type: integer
+        status:
+          type: string
+          example: "PLANNING"
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    ChecklistItemInput:
+      type: object
+      required:
+        - categoryId
+        - quantity
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          default: 1
+        durationHours:
+          type: integer
+          example: 6
+        brand:
+          type: string
+          nullable: true
+          example: "JBL Audio"
+
+    ChecklistItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        quantity:
+          type: integer
+        durationHours:
+          type: integer
+        brand:
+          type: string
+          nullable: true
+        coverageStatus:
+          type: string
+          enum:
+            - NOT_COVERED
+            - REQUESTED
+            - BOOKED
+        bookingId:
+          type: string
+          format: uuid
+          nullable: true
+
+    ItemMatchingVendorPackage:
+      type: object
+      properties:
+        vendorId:
+          type: string
+          format: uuid
+        vendorName:
+          type: string
+        packageId:
+          type: string
+          format: uuid
+        packageName:
+          type: string
+        pricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        rating:
+          type: number
+          format: float
+
+    CoverageSummary:
+      type: object
+      properties:
+        totalItemsCount:
+          type: integer
+          example: 5
+        coveredItemsCount:
+          type: integer
+          example: 3
+        notCoveredItemsCount:
+          type: integer
+          example: 2
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChecklistItem"
+
+    NotifyRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        targetDate:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - NOTIFIED
+            - EXPIRED
+        expiresAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

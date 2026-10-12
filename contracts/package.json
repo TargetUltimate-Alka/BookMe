@@ -1,0 +1,13 @@
+{
+  "name": "bookme-contracts",
+  "version": "1.0.0",
+  "description": "API and event contracts for BookMe marketplace microservices",
+  "scripts": {
+    "contracts:lint": "spectral lint openapi/*.yaml",
+    "contracts:mock": "prism mock openapi/common.yaml"
+  },
+  "devDependencies": {
+    "@stoplight/prism-cli": "^5.8.0",
+    "@stoplight/spectral-cli": "^6.14.0"
+  }
+}

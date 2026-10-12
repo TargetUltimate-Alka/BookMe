@@ -1,0 +1,385 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Vendor Wallet & Lead Billing API
+  version: "1.0.0"
+  description: Prepaid vendor lead-fee wallet, immutable append-only ledger, low-balance alert thresholds, and lead dispute handling (FR-WAL-01..05, FR-COM-06, SRS §2.3, §11.4).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /wallet/me:
+    get:
+      operationId: getWalletBalance
+      summary: Get current prepaid wallet balance and visibility status (active vs hidden)
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-WAL-01
+        - FR-WAL-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Wallet status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletSummary"
+
+  /wallet/me/ledger:
+    get:
+      operationId: getWalletLedger
+      summary: Read-only append-only ledger entries (no edits or deletes permitted)
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+        - superAdmin
+        - financeAdmin
+      x-requirement-ids:
+        - FR-WAL-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Ledger entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WalletLedgerEntry"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /wallet/me/topup:
+    post:
+      operationId: createTopupOrder
+      summary: Create gateway payment order to recharge vendor lead-fee credits
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-WAL-01
+        - §2.3
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amountPaise
+              properties:
+                amountPaise:
+                  $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+                  example: 100000
+      responses:
+        "201":
+          description: Gateway top-up order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId:
+                    type: string
+                  amountPaise:
+                    $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+
+  /wallet/me/alerts:
+    get:
+      operationId: getWalletAlertSettings
+      summary: Query low-balance alert thresholds (150% and 100% of minimum) and notification preferences
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-WAL-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Alert settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletAlertSettings"
+
+    put:
+      operationId: updateWalletAlertSettings
+      summary: Update channels for low-balance notifications
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-WAL-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enableSms:
+                  type: boolean
+                enableEmail:
+                  type: boolean
+                enablePush:
+                  type: boolean
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletAlertSettings"
+
+  /wallet/me/leads:
+    get:
+      operationId: listBilledLeads
+      summary: List qualified calls debited from wallet with connected duration
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-WAL-02
+        - FR-COM-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Billed leads list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BilledLeadItem"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /wallet/me/leads/{leadId}/dispute:
+    post:
+      operationId: disputeLead
+      summary: Vendor disputes a billed lead within 48h with justification
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-COM-06
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Silent call / customer disconnected without talking."
+      responses:
+        "201":
+          description: Dispute logged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disputeId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "SUBMITTED"
+
+  /admin/leads/{leadId}/dispute-decision:
+    post:
+      operationId: resolveLeadDispute
+      summary: Finance Admin decides on lead dispute; automatically refunds fee if upheld
+      tags:
+        - Wallet
+      x-owner: "B"
+      x-roles:
+        - financeAdmin
+        - superAdmin
+      x-requirement-ids:
+        - FR-COM-06
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - decision
+                - rationale
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - UPHELD
+                    - REJECTED
+                rationale:
+                  type: string
+                  example: "Call recording audio confirms spam / silent robocall."
+      responses:
+        "200":
+          description: Dispute resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "RESOLVED"
+                  refundCreditedPaise:
+                    $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+
+components:
+  schemas:
+    WalletSummary:
+      type: object
+      properties:
+        vendorId:
+          type: string
+          format: uuid
+        balancePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        minimumRequiredPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - GRACE_PERIOD
+            - HIDDEN
+        gracePeriodExpiresAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+          nullable: true
+        estimatedDaysRemaining:
+          type: integer
+          example: 18
+
+    WalletLedgerEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        entryType:
+          type: string
+          enum:
+            - TOPUP
+            - LEAD_FEE
+            - PENALTY_DEDUCTION
+            - DISPUTE_REFUND
+        amountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        balanceAfterPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        referenceId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    WalletAlertSettings:
+      type: object
+      properties:
+        threshold150Paise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        threshold100Paise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        enableSms:
+          type: boolean
+        enableEmail:
+          type: boolean
+        enablePush:
+          type: boolean
+
+    BilledLeadItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        callSessionId:
+          type: string
+          format: uuid
+        customerIdMasked:
+          type: string
+          example: "cust_***89"
+        connectedSeconds:
+          type: integer
+          example: 45
+        feePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        status:
+          $ref: "./common.yaml#/components/schemas/LeadStatus"
+        calledAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

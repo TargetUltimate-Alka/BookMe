@@ -1,0 +1,150 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Catalog & Media Events
+  version: "1.0.0"
+  description: Events for media upload moderation and capacity opened triggering Notify-Me matchers (FR-VEN-02, FR-NOT-02, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  mediaUploaded:
+    address: bookme.events/media.uploaded
+    messages:
+      mediaUploadedMessage:
+        $ref: "#/components/messages/MediaUploadedMessage"
+  mediaModerated:
+    address: bookme.events/media.moderated
+    messages:
+      mediaModeratedMessage:
+        $ref: "#/components/messages/MediaModeratedMessage"
+  capacityOpened:
+    address: bookme.events/capacity.opened
+    messages:
+      capacityOpenedMessage:
+        $ref: "#/components/messages/CapacityOpenedMessage"
+
+operations:
+  onMediaUploaded:
+    action: receive
+    channel:
+      $ref: "#/channels/mediaUploaded"
+    summary: Enqueued to media.moderation worker to check for duplicate hashes and inappropriate content
+    bindings:
+      amqp:
+        queue:
+          name: media.moderation
+          durable: true
+          autoDelete: false
+        bindingVersion: "0.3.0"
+
+  onCapacityOpened:
+    action: receive
+    channel:
+      $ref: "#/channels/capacityOpened"
+    summary: Enqueued to notifyme.matching worker to alert customers with matching notify requests
+    bindings:
+      amqp:
+        queue:
+          name: notifyme.matching
+          durable: true
+          autoDelete: false
+        bindingVersion: "0.3.0"
+
+components:
+  messages:
+    MediaUploadedMessage:
+      name: MediaUploaded
+      title: Media Uploaded Event
+      payload:
+        type: object
+        required:
+          - mediaId
+          - vendorId
+          - s3Url
+          - sha256Checksum
+          - mimeType
+        properties:
+          mediaId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          s3Url:
+            type: string
+            format: uri
+          sha256Checksum:
+            type: string
+          mimeType:
+            type: string
+      examples:
+        - name: MediaUploadedExample
+          payload:
+            mediaId: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            s3Url: "https://storage.bookme.com/vendors/stage_setup.jpg"
+            sha256Checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            mimeType: "image/jpeg"
+
+    MediaModeratedMessage:
+      name: MediaModerated
+      title: Media Moderated Event
+      payload:
+        type: object
+        required:
+          - mediaId
+          - status
+          - moderatedBy
+        properties:
+          mediaId:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum:
+              - APPROVED
+              - REJECTED
+          moderatedBy:
+            type: string
+            format: uuid
+          rejectionReason:
+            type: string
+            nullable: true
+      examples:
+        - name: MediaModeratedExample
+          payload:
+            mediaId: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            status: "APPROVED"
+            moderatedBy: "a1192834-8096-4a57-8984-b040e698ea99"
+            rejectionReason: null
+
+    CapacityOpenedMessage:
+      name: CapacityOpened
+      title: Capacity Opened Event
+      summary: Dispatched when vendor increases capacity, a booking is cancelled, or a new vendor is approved
+      payload:
+        type: object
+        required:
+          - packageId
+          - categoryId
+          - date
+          - availableUnits
+        properties:
+          packageId:
+            type: string
+            format: uuid
+          categoryId:
+            type: string
+            format: uuid
+          date:
+            type: string
+            format: date
+          availableUnits:
+            type: integer
+      examples:
+        - name: CapacityOpenedExample
+          payload:
+            packageId: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            categoryId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            date: "2026-12-15"
+            availableUnits: 1

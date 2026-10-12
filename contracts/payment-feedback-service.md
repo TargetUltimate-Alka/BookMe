@@ -1,5 +1,7 @@
 # API Contract — payment-feedback-service
 
+> **Notice (v1.0.0 Contracts):** This contract has been formalized and superseded by the OpenAPI 3.1 specifications at [`contracts/openapi/payment.yaml`](./openapi/payment.yaml), [`contracts/openapi/wallet.yaml`](./openapi/wallet.yaml), [`contracts/openapi/communication.yaml`](./openapi/communication.yaml), [`contracts/openapi/review.yaml`](./openapi/review.yaml), [`contracts/openapi/support.yaml`](./openapi/support.yaml), [`contracts/openapi/admin.yaml`](./openapi/admin.yaml), and [`contracts/openapi/notification.yaml`](./openapi/notification.yaml). Refer to [`contracts/README.md`](./README.md) and [`contracts/traceability.md`](./traceability.md).
+
 Owner: Person D
 
 Agree on this BEFORE writing implementation code.

@@ -1,0 +1,67 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Vendor Verification & Status Events
+  version: "1.0.0"
+  description: Lifecycle events for vendor KYC status transitions (FR-ONB-06, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  vendorKycStatusChanged:
+    address: bookme.events/vendor.kyc.status_changed
+    messages:
+      vendorKycStatusChangedMessage:
+        $ref: "#/components/messages/VendorKycStatusChangedMessage"
+
+components:
+  messages:
+    VendorKycStatusChangedMessage:
+      name: VendorKycStatusChanged
+      title: Vendor KYC Status Changed Event
+      payload:
+        type: object
+        required:
+          - vendorId
+          - oldStatus
+          - newStatus
+          - changedBy
+        properties:
+          vendorId:
+            type: string
+            format: uuid
+          oldStatus:
+            type: string
+            enum:
+              - DRAFT
+              - SUBMITTED
+              - UNDER_REVIEW
+              - APPROVED
+              - REJECTED
+              - SUSPENDED
+          newStatus:
+            type: string
+            enum:
+              - DRAFT
+              - SUBMITTED
+              - UNDER_REVIEW
+              - APPROVED
+              - REJECTED
+              - SUSPENDED
+          changedBy:
+            type: string
+            format: uuid
+          reason:
+            type: string
+            nullable: true
+          timestamp:
+            type: string
+            format: date-time
+      examples:
+        - name: KycApprovedExample
+          payload:
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            oldStatus: "UNDER_REVIEW"
+            newStatus: "APPROVED"
+            changedBy: "a1192834-8096-4a57-8984-b040e698ea99"
+            reason: "All documents valid and penny-drop verified."
+            timestamp: "2026-10-13T12:00:00.000Z"

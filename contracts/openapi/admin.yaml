@@ -1,0 +1,435 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Administration, RBAC, Audit & Config API
+  version: "1.0.0"
+  description: Super Admin user/role management, immutable audit trail querying, dynamic CONFIG parameters editor, and vendor enforcement ladder (FR-ADM-01..04, SRS §2.3).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: List users and their assigned roles
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/UserRole"
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminUserRecord"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /admin/users/{id}/roles:
+    patch:
+      operationId: updateUserRoles
+      summary: Assign or revoke administrative sub-roles (Verifier, Support Agent, Finance Admin, Content Moderator)
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - roles
+              properties:
+                roles:
+                  type: array
+                  items:
+                    $ref: "./common.yaml#/components/schemas/UserRole"
+      responses:
+        "200":
+          description: Roles updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserRecord"
+
+  /admin/audit-logs:
+    get:
+      operationId: queryAuditLogs
+      summary: Query immutable audit trail (who, what, when, before, after)
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entity
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "Booking"
+        - name: actorId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Audit logs array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLogEntry"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /admin/configs:
+    get:
+      operationId: listConfigs
+      summary: List all admin-editable CONFIG parameters and current defaults
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-03
+        - §2.3
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Configuration parameters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigItem"
+
+  /admin/configs/{key}:
+    patch:
+      operationId: updateConfig
+      summary: Update a CONFIG value with audit change history
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "LEAD_FEE_PAISE"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+                - changeReason
+              properties:
+                value:
+                  type: string
+                  example: "3000"
+                changeReason:
+                  type: string
+                  example: "Revised festive season lead pricing."
+      responses:
+        "200":
+          description: Config updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigItem"
+
+  /admin/configs/{key}/history:
+    get:
+      operationId: getConfigHistory
+      summary: View modification history for a configuration key
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Config history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigHistoryEntry"
+
+  /admin/vendors/{id}/enforcement:
+    post:
+      operationId: applyVendorEnforcement
+      summary: Apply vendor enforcement ladder action (warning, suspension, termination)
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-ADM-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+                - reason
+              properties:
+                action:
+                  type: string
+                  enum:
+                    - WARNING
+                    - SUSPENSION
+                    - TERMINATION
+                reason:
+                  type: string
+                  example: "Repeated off-platform contact sharing and missed bookings."
+                caseNotes:
+                  type: string
+      responses:
+        "200":
+          description: Enforcement applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vendorId:
+                    type: string
+                    format: uuid
+                  action:
+                    type: string
+                  appliedAt:
+                    $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+  /admin/moderation/queue:
+    get:
+      operationId: getModerationQueue
+      summary: Unified moderation queue for reviews and vendor media
+      tags:
+        - Admin
+      x-owner: "B"
+      x-roles:
+        - contentModerator
+        - superAdmin
+      x-requirement-ids:
+        - FR-VEN-02
+        - FR-REV-04
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - MEDIA
+              - REVIEW
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Pending moderation queue items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ModerationQueueItem"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+components:
+  schemas:
+    AdminUserRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: "./common.yaml#/components/schemas/UserRole"
+        status:
+          type: string
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          example: "CONFIG_UPDATE"
+        entity:
+          type: string
+          example: "Config"
+        entityId:
+          type: string
+        beforeState:
+          type: object
+        afterState:
+          type: object
+        timestamp:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    ConfigItem:
+      type: object
+      properties:
+        key:
+          type: string
+          example: "MINIMUM_WALLET_BALANCE_PAISE"
+        value:
+          type: string
+          example: "50000"
+        description:
+          type: string
+        updatedBy:
+          type: string
+          format: uuid
+        updatedAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    ConfigHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        oldValue:
+          type: string
+        newValue:
+          type: string
+        changeReason:
+          type: string
+        updatedBy:
+          type: string
+          format: uuid
+        updatedAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    ModerationQueueItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        itemType:
+          type: string
+          enum:
+            - MEDIA
+            - REVIEW
+        contentUrl:
+          type: string
+          format: uri
+          nullable: true
+        contentText:
+          type: string
+          nullable: true
+        reportedBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

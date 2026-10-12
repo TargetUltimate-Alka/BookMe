@@ -1,0 +1,284 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Common API Schemas
+  version: "1.0.0"
+  description: Shared schemas, security schemes, parameter definitions, and error envelopes across all BookMe domains.
+paths: {}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard user bearer token.
+    internalAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Key
+      description: Shared internal key for microservice-to-microservice communication.
+
+  parameters:
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique UUID key to protect mutating operations against duplicate replays.
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Number of records to return per page.
+    CursorQuery:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Cursor identifier for pagination.
+
+  schemas:
+    CurrencyPaise:
+      type: integer
+      minimum: 0
+      description: Monetary amount in Indian Paise (1 INR = 100 paise).
+      example: 2500000
+
+    DateTimeUtc:
+      type: string
+      format: date-time
+      description: ISO 8601 UTC timestamp.
+      example: "2026-10-13T12:00:00.000Z"
+
+    DateString:
+      type: string
+      format: date
+      description: Calendar date in YYYY-MM-DD format.
+      example: "2026-12-15"
+
+    CursorPaginationMeta:
+      type: object
+      required:
+        - limit
+        - hasMore
+      properties:
+        limit:
+          type: integer
+          example: 20
+        cursor:
+          type: string
+          nullable: true
+          example: "cur_01J9X4Y"
+        nextCursor:
+          type: string
+          nullable: true
+          example: "cur_01J9X9Z"
+        hasMore:
+          type: boolean
+          example: true
+        total:
+          type: integer
+          nullable: true
+          example: 45
+
+    Location:
+      type: object
+      required:
+        - address
+        - city
+        - latitude
+        - longitude
+      properties:
+        address:
+          type: string
+          example: "Sarkhej - Gandhinagar Hwy, Bodakdev"
+        city:
+          type: string
+          example: "Ahmedabad"
+        state:
+          type: string
+          example: "Gujarat"
+        postalCode:
+          type: string
+          example: "380054"
+        latitude:
+          type: number
+          format: float
+          example: 23.033863
+        longitude:
+          type: number
+          format: float
+          example: 72.507423
+
+    BookingStatus:
+      type: string
+      enum:
+        - REQUESTED
+        - NEGOTIATING
+        - ACCEPTED
+        - REJECTED
+        - EXPIRED
+        - CONFIRMED
+        - CANCELLED_BY_CUSTOMER
+        - CANCELLED_BY_VENDOR
+        - IN_PROGRESS
+        - NO_SHOW
+        - COMPLETED
+        - DISPUTED
+      description: Exact booking lifecycle states per SRS Section 5.
+
+    VendorKycStatus:
+      type: string
+      enum:
+        - DRAFT
+        - SUBMITTED
+        - UNDER_REVIEW
+        - APPROVED
+        - REJECTED
+        - SUSPENDED
+      description: Vendor verification state per SRS FR-ONB-06.
+
+    UserRole:
+      type: string
+      enum:
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      description: Role types and admin sub-roles per SRS Section 2.1 & FR-ADM-01.
+
+    PaymentType:
+      type: string
+      enum:
+        - DEPOSIT
+        - BALANCE
+        - REFUND
+        - PAYOUT
+      description: Category of monetary payment order.
+
+    PaymentStatus:
+      type: string
+      enum:
+        - PENDING
+        - AUTHORIZED
+        - SUCCEEDED
+        - FAILED
+        - REFUNDED
+      description: Status of payment transaction.
+
+    LeadStatus:
+      type: string
+      enum:
+        - QUALIFIED
+        - DISQUALIFIED
+        - FLAGGED_SPAM
+        - DISPUTED
+        - REVERSED
+      description: Qualification state of vendor lead.
+
+    TicketStatus:
+      type: string
+      enum:
+        - OPEN
+        - IN_PROGRESS
+        - WAITING_USER
+        - RESOLVED
+        - CLOSED
+      description: Support ticket status.
+
+    TicketPriority:
+      type: string
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+        - CRITICAL
+      description: Support ticket priority.
+
+    ModerationStatus:
+      type: string
+      enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+      description: Moderation review status for reviews and vendor media.
+
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - CONFLICT
+        - INVALID_STATE_TRANSITION
+        - CAPACITY_UNAVAILABLE
+        - WALLET_BELOW_MINIMUM
+        - INSUFFICIENT_WALLET_BALANCE
+        - PII_BLOCKED
+        - REVIEW_NOT_ALLOWED
+        - REVIEW_WINDOW_EXPIRED
+        - DAMAGE_CLAIM_EXPIRED
+        - UNSUPPORTED_MEDIA_TYPE
+        - DUPLICATE_MEDIA_HASH
+        - RATE_LIMIT_EXCEEDED
+        - UPSTREAM_GATEWAY_ERROR
+        - INTERNAL_SERVER_ERROR
+      description: Machine-readable error codes.
+
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          example: "packageId"
+        issue:
+          type: string
+          example: "Capacity unavailable for requested date"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+        - traceId
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+          example: "The requested resource could not be found or state transition is invalid."
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          default: []
+        traceId:
+          type: string
+          example: "req_01J9X4Y97R43098"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: "UP"
+        service:
+          type: string
+          example: "auth-service"
+        timestamp:
+          $ref: "#/components/schemas/DateTimeUtc"

@@ -1,0 +1,919 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Catalog & Media API
+  version: "1.0.0"
+  description: Service categories, packages with tiers & GST, add-ons, discounts, security deposits, and pre-signed media upload with duplicate hash validation (FR-VEN-02..05, FR-VEN-09, FR-VEN-11).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /categories:
+    get:
+      operationId: listCategories
+      summary: List all service categories
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-01
+        - FR-PLAN-01
+      x-change: "new"
+      responses:
+        "200":
+          description: Category hierarchy
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /categories/{id}:
+    get:
+      operationId: getCategory
+      summary: Get details of a category
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "new"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Category item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /vendors/me/packages:
+    post:
+      operationId: createPackage
+      summary: Create new package with tiers, inclusions, GST, and security deposit
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-03
+        - FR-VEN-09
+        - FR-VEN-11
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePackageInput"
+      responses:
+        "201":
+          description: Package created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Package"
+        "400":
+          description: Validation failure
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /vendors/{vendorId}/packages:
+    get:
+      operationId: listVendorPackages
+      summary: List all packages published by vendor
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-01
+        - FR-VEN-03
+      x-change: "modified"
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of packages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Package"
+
+  /packages/{id}:
+    get:
+      operationId: getPackageById
+      summary: Get complete package details by ID
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-03
+      x-change: "new"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Package details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Package"
+        "404":
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /vendors/me/packages/{id}:
+    patch:
+      operationId: updatePackage
+      summary: Update package details
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-03
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                basePricePaise:
+                  $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+                inclusions:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Package updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Package"
+
+    delete:
+      operationId: deletePackage
+      summary: Archive package
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-03
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Package deleted
+
+  /vendors/me/packages/{id}/addons:
+    post:
+      operationId: createPackageAddon
+      summary: Add optional add-on to package
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddonInput"
+      responses:
+        "201":
+          description: Add-on created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackageAddon"
+
+  /vendors/me/packages/{id}/addons/{addonId}:
+    patch:
+      operationId: updatePackageAddon
+      summary: Update add-on details
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: addonId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                pricePaise:
+                  $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+      responses:
+        "200":
+          description: Updated add-on
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackageAddon"
+
+    delete:
+      operationId: deletePackageAddon
+      summary: Remove add-on
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: addonId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Addon deleted
+
+  /vendors/me/discounts:
+    post:
+      operationId: createDiscount
+      summary: Create discount rule
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscountInput"
+      responses:
+        "201":
+          description: Discount created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discount"
+
+    get:
+      operationId: listDiscounts
+      summary: List vendor active discounts
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of discounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Discount"
+
+  /vendors/me/discounts/{id}:
+    delete:
+      operationId: deleteDiscount
+      summary: Delete discount
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Discount deleted
+
+  /media/upload-url:
+    post:
+      operationId: generateMediaUploadUrl
+      summary: Generate pre-signed URL with duplicate hash check
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fileName
+                - fileSizeBytes
+                - mimeType
+                - sha256Checksum
+              properties:
+                fileName:
+                  type: string
+                  example: "stage_setup.jpg"
+                fileSizeBytes:
+                  type: integer
+                  maximum: 20971520
+                  example: 3145728
+                mimeType:
+                  type: string
+                  enum:
+                    - image/jpeg
+                    - image/png
+                    - image/webp
+                    - video/mp4
+                sha256Checksum:
+                  type: string
+                  example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      responses:
+        "200":
+          description: Pre-signed upload instructions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                    format: uri
+                  fileId:
+                    type: string
+                    format: uuid
+                  expiresInSeconds:
+                    type: integer
+                    example: 900
+        "409":
+          description: Duplicate media file already used by another vendor
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /media/{id}/status:
+    get:
+      operationId: getMediaStatus
+      summary: Check moderation status of uploaded media
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Media status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: "./common.yaml#/components/schemas/ModerationStatus"
+                  url:
+                    type: string
+                    format: uri
+
+  /admin/media/{id}/moderate:
+    post:
+      operationId: moderateMedia
+      summary: Content Moderator approve or reject media
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - contentModerator
+        - superAdmin
+      x-requirement-ids:
+        - FR-VEN-02
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - decision
+              properties:
+                decision:
+                  $ref: "./common.yaml#/components/schemas/ModerationStatus"
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Moderation recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: "./common.yaml#/components/schemas/ModerationStatus"
+
+  # Deprecated Legacy Standalone Services Endpoints
+  /vendors/{vendorId}/services:
+    post:
+      deprecated: true
+      operationId: createServiceLegacy
+      summary: (Deprecated) Create standalone service
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - basePrice
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                basePrice:
+                  type: number
+      responses:
+        "201":
+          description: Legacy service created
+
+    get:
+      deprecated: true
+      operationId: listServicesLegacy
+      summary: (Deprecated) List standalone services
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "deprecated"
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Legacy services list
+
+  /vendors/{vendorId}/services/{serviceId}:
+    patch:
+      deprecated: true
+      operationId: updateServiceLegacy
+      summary: (Deprecated) Update standalone service
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Updated
+
+    delete:
+      deprecated: true
+      operationId: deleteServiceLegacy
+      summary: (Deprecated) Delete standalone service
+      tags:
+        - Catalog
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-01
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+
+components:
+  schemas:
+    Category:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Catering"
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreatePackageInput:
+      type: object
+      required:
+        - name
+        - categoryId
+        - tier
+        - basePricePaise
+        - pricingUnit
+        - inclusions
+      properties:
+        name:
+          type: string
+          example: "Royal Buffet Package"
+        categoryId:
+          type: string
+          format: uuid
+        tier:
+          type: string
+          enum:
+            - Basic
+            - Standard
+            - Premium
+          example: "Premium"
+        basePricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        pricingUnit:
+          type: string
+          enum:
+            - per_day
+            - per_hour
+            - per_plate
+            - flat
+          example: "per_day"
+        inclusions:
+          type: array
+          items:
+            type: string
+          example: ["Live counters", "5 Star chefs", "Cutlery and glassware"]
+        guestMin:
+          type: integer
+          example: 100
+        guestMax:
+          type: integer
+          example: 500
+        durationHours:
+          type: integer
+          example: 8
+        overtimeRatePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        securityDepositPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        gstRatePercent:
+          type: number
+          example: 18.0
+        hsnSacCode:
+          type: string
+          example: "996331"
+
+    Package:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vendorId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tier:
+          type: string
+        basePricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        pricingUnit:
+          type: string
+        inclusions:
+          type: array
+          items:
+            type: string
+        securityDepositPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        gstRatePercent:
+          type: number
+        hsnSacCode:
+          type: string
+        addons:
+          type: array
+          items:
+            $ref: "#/components/schemas/PackageAddon"
+
+    AddonInput:
+      type: object
+      required:
+        - name
+        - pricePaise
+      properties:
+        name:
+          type: string
+          example: "Extra live chaat counter"
+        pricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        pricingBasis:
+          type: string
+          example: "flat"
+
+    PackageAddon:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        pricePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        pricingBasis:
+          type: string
+
+    DiscountInput:
+      type: object
+      required:
+        - scope
+        - type
+        - value
+        - startDate
+        - endDate
+      properties:
+        scope:
+          type: string
+          enum:
+            - VENDOR
+            - PACKAGE
+        packageId:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          type: string
+          enum:
+            - PERCENT
+            - FLAT
+        value:
+          type: number
+          example: 15.0
+        startDate:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        endDate:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        minOrderPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        code:
+          type: string
+          example: "DIWALI15"
+
+    Discount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        value:
+          type: number
+        code:
+          type: string
+        minOrderPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"

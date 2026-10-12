@@ -1,5 +1,7 @@
 # API Contract — auth-service
 
+> **Notice (v1.0.0 Contracts):** This contract has been formalized and superseded by the OpenAPI 3.1 specification at [`contracts/openapi/identity.yaml`](./openapi/identity.yaml). Refer to [`contracts/README.md`](./README.md) and [`contracts/traceability.md`](./traceability.md).
+
 Owner: Person A
 
 Agree on this BEFORE writing implementation code. This is a draft to review as a

@@ -1,0 +1,392 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Booking Domain Events
+  version: "1.0.0"
+  description: Lifecycle events for BookMe booking state machine (requested, countered, accepted, rejected, expired, confirmed, cancelled, in_progress, no_show, completed, disputed) per SRS Section 5 & §11.3.
+
+defaultContentType: application/json
+
+channels:
+  bookingRequested:
+    address: bookme.events/booking.requested
+    messages:
+      bookingRequestedMessage:
+        $ref: "#/components/messages/BookingRequestedMessage"
+  bookingCountered:
+    address: bookme.events/booking.countered
+    messages:
+      bookingCounteredMessage:
+        $ref: "#/components/messages/BookingCounteredMessage"
+  bookingAccepted:
+    address: bookme.events/booking.accepted
+    messages:
+      bookingAcceptedMessage:
+        $ref: "#/components/messages/BookingAcceptedMessage"
+  bookingRejected:
+    address: bookme.events/booking.rejected
+    messages:
+      bookingRejectedMessage:
+        $ref: "#/components/messages/BookingRejectedMessage"
+  bookingExpired:
+    address: bookme.events/booking.expired
+    messages:
+      bookingExpiredMessage:
+        $ref: "#/components/messages/BookingExpiredMessage"
+  bookingConfirmed:
+    address: bookme.events/booking.confirmed
+    messages:
+      bookingConfirmedMessage:
+        $ref: "#/components/messages/BookingConfirmedMessage"
+  bookingCancelled:
+    address: bookme.events/booking.cancelled
+    messages:
+      bookingCancelledMessage:
+        $ref: "#/components/messages/BookingCancelledMessage"
+  bookingInProgress:
+    address: bookme.events/booking.in_progress
+    messages:
+      bookingInProgressMessage:
+        $ref: "#/components/messages/BookingInProgressMessage"
+  bookingNoShow:
+    address: bookme.events/booking.no_show
+    messages:
+      bookingNoShowMessage:
+        $ref: "#/components/messages/BookingNoShowMessage"
+  bookingCompleted:
+    address: bookme.events/booking.completed
+    messages:
+      bookingCompletedMessage:
+        $ref: "#/components/messages/BookingCompletedMessage"
+  bookingDisputed:
+    address: bookme.events/booking.disputed
+    messages:
+      bookingDisputedMessage:
+        $ref: "#/components/messages/BookingDisputedMessage"
+
+operations:
+  onBookingRequested:
+    action: receive
+    channel:
+      $ref: "#/channels/bookingRequested"
+    summary: Consumer receives booking request to start vendor response deadline timer (12h/2h).
+    bindings:
+      amqp:
+        queue:
+          name: booking.deadlines
+          durable: true
+          autoDelete: false
+        bindingVersion: "0.3.0"
+
+components:
+  messages:
+    BookingRequestedMessage:
+      name: BookingRequested
+      title: Booking Requested Event
+      summary: Published when customer submits a booking request with capacity soft-hold
+      contentType: application/json
+      payload:
+        type: object
+        required:
+          - bookingId
+          - customerId
+          - vendorId
+          - packageId
+          - eventDate
+          - amountPaise
+          - responseDueAt
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          customerId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          packageId:
+            type: string
+            format: uuid
+          eventDate:
+            type: string
+            format: date
+          amountPaise:
+            type: integer
+          responseDueAt:
+            type: string
+            format: date-time
+      examples:
+        - name: BookingRequestedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            customerId: "e3a89012-3211-4a12-b512-c01928491823"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            packageId: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+            eventDate: "2026-12-15"
+            amountPaise: 12000000
+            responseDueAt: "2026-10-14T00:00:00.000Z"
+
+    BookingCounteredMessage:
+      name: BookingCountered
+      title: Booking Countered Event
+      summary: Published when vendor or customer proposes a counter-offer
+      payload:
+        type: object
+        required:
+          - bookingId
+          - counterId
+          - proposerRole
+          - proposedAmountPaise
+          - expiresAt
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          counterId:
+            type: string
+            format: uuid
+          proposerRole:
+            type: string
+          proposedAmountPaise:
+            type: integer
+          expiresAt:
+            type: string
+            format: date-time
+      examples:
+        - name: BookingCounteredExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            counterId: "a1192834-8096-4a57-8984-b040e698ea99"
+            proposerRole: "vendor"
+            proposedAmountPaise: 11000000
+            expiresAt: "2026-10-13T18:00:00.000Z"
+
+    BookingAcceptedMessage:
+      name: BookingAccepted
+      title: Booking Accepted Event
+      summary: Published when vendor accepts request or counter is agreed; starts 2-hour deposit timer
+      payload:
+        type: object
+        required:
+          - bookingId
+          - depositDueAt
+          - depositAmountPaise
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          depositDueAt:
+            type: string
+            format: date-time
+          depositAmountPaise:
+            type: integer
+      examples:
+        - name: BookingAcceptedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            depositDueAt: "2026-10-13T14:00:00.000Z"
+            depositAmountPaise: 4800000
+
+    BookingRejectedMessage:
+      name: BookingRejected
+      title: Booking Rejected Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - reason
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          reason:
+            type: string
+      examples:
+        - name: BookingRejectedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            reason: "Fully booked"
+
+    BookingExpiredMessage:
+      name: BookingExpired
+      title: Booking Expired Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - expirationType
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          expirationType:
+            type: string
+            enum:
+              - VENDOR_RESPONSE_TIMEOUT
+              - DEPOSIT_PAYMENT_TIMEOUT
+              - BALANCE_PAYMENT_TIMEOUT
+      examples:
+        - name: BookingExpiredExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            expirationType: "DEPOSIT_PAYMENT_TIMEOUT"
+
+    BookingConfirmedMessage:
+      name: BookingConfirmed
+      title: Booking Confirmed Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - depositAmountPaidPaise
+          - balanceDueAt
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          depositAmountPaidPaise:
+            type: integer
+          balanceDueAt:
+            type: string
+            format: date-time
+      examples:
+        - name: BookingConfirmedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            depositAmountPaidPaise: 4800000
+            balanceDueAt: "2026-12-13T12:00:00.000Z"
+
+    BookingCancelledMessage:
+      name: BookingCancelled
+      title: Booking Cancelled Event
+      summary: Emitted when customer or vendor cancels; carries charge calculations per Section 2.4
+      payload:
+        type: object
+        required:
+          - bookingId
+          - cancelledBy
+          - hoursBeforeEvent
+          - customerRefundPaise
+          - customerChargePaise
+          - vendorPenaltyPaise
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          cancelledBy:
+            type: string
+            enum:
+              - CUSTOMER
+              - VENDOR
+              - SYSTEM
+              - ADMIN
+          hoursBeforeEvent:
+            type: integer
+          customerRefundPaise:
+            type: integer
+          customerChargePaise:
+            type: integer
+          vendorPenaltyPaise:
+            type: integer
+          reason:
+            type: string
+      examples:
+        - name: BookingCancelledExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            cancelledBy: "CUSTOMER"
+            hoursBeforeEvent: 120
+            customerRefundPaise: 3600000
+            customerChargePaise: 1200000
+            vendorPenaltyPaise: 0
+            reason: "Venue change"
+
+    BookingInProgressMessage:
+      name: BookingInProgress
+      title: Booking In Progress Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - checkInLatitude
+          - checkInLongitude
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          checkInLatitude:
+            type: number
+          checkInLongitude:
+            type: number
+      examples:
+        - name: BookingInProgressExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            checkInLatitude: 23.033863
+            checkInLongitude: 72.507423
+
+    BookingNoShowMessage:
+      name: BookingNoShow
+      title: Booking No Show Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - vendorPenaltyPaise
+          - customerRefundPaise
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          vendorPenaltyPaise:
+            type: integer
+          customerRefundPaise:
+            type: integer
+      examples:
+        - name: BookingNoShowExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            vendorPenaltyPaise: 12000000
+            customerRefundPaise: 12000000
+
+    BookingCompletedMessage:
+      name: BookingCompleted
+      title: Booking Completed Event
+      summary: Customer confirmed completion or auto-completed 24h after event end
+      payload:
+        type: object
+        required:
+          - bookingId
+          - payoutScheduledAt
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          payoutScheduledAt:
+            type: string
+            format: date-time
+      examples:
+        - name: BookingCompletedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            payoutScheduledAt: "2026-12-16T12:00:00.000Z"
+
+    BookingDisputedMessage:
+      name: BookingDisputed
+      title: Booking Disputed Event
+      payload:
+        type: object
+        required:
+          - bookingId
+          - disputeReason
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          disputeReason:
+            type: string
+      examples:
+        - name: BookingDisputedExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            disputeReason: "Service not completed as agreed"

@@ -1,0 +1,452 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Availability & Capacity API
+  version: "1.0.0"
+  description: Package capacity per date and time slot with atomic soft-holds and booking decrements (FR-VEN-06, FR-VEN-07, SRS §11.4).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /packages/{packageId}/availability:
+    get:
+      operationId: getPackageAvailability
+      summary: Retrieve capacity and remaining units for a date or date range
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+        - superAdmin
+        - verifier
+        - supportAgent
+        - financeAdmin
+        - contentModerator
+      x-requirement-ids:
+        - FR-VEN-06
+      x-change: "modified"
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+      responses:
+        "200":
+          description: Capacity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailabilityCapacity"
+
+  /vendors/me/packages/{packageId}/availability:
+    put:
+      operationId: setPackageAvailability
+      summary: Set total available units for a package on a specific date/slot
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-06
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - totalUnits
+              properties:
+                date:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                slot:
+                  type: string
+                  example: "FULL_DAY"
+                totalUnits:
+                  type: integer
+                  minimum: 0
+                  example: 3
+      responses:
+        "200":
+          description: Capacity updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityCapacity"
+
+  /vendors/me/packages/{packageId}/availability/bulk:
+    post:
+      operationId: bulkSetAvailability
+      summary: Bulk update capacity over a date range
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-06
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - startDate
+                - endDate
+                - totalUnits
+              properties:
+                startDate:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                endDate:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                slot:
+                  type: string
+                  example: "FULL_DAY"
+                totalUnits:
+                  type: integer
+                  minimum: 0
+                  example: 2
+      responses:
+        "200":
+          description: Bulk capacity set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedDaysCount:
+                    type: integer
+                    example: 14
+
+  /availability/check:
+    get:
+      operationId: checkPublicAvailability
+      summary: Public availability check for a specific package, date, and quantity
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - anonymous
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-06
+        - FR-VEN-07
+      x-change: "new"
+      parameters:
+        - name: packageId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: date
+          in: query
+          required: true
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: quantity
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Availability check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                    example: true
+                  remainingUnits:
+                    type: integer
+                    example: 2
+
+  /internal/availability/hold:
+    post:
+      operationId: internalHoldCapacity
+      summary: Atomically soft-hold package capacity for a booking request
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-BKG-01
+        - FR-VEN-06
+      x-change: "modified"
+      security:
+        - internalAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - packageId
+                - date
+                - quantity
+                - bookingId
+              properties:
+                packageId:
+                  type: string
+                  format: uuid
+                date:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                slot:
+                  type: string
+                  default: "FULL_DAY"
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 1
+                bookingId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Soft hold acquired
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  heldUnits:
+                    type: integer
+        "409":
+          description: Capacity unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /internal/availability/release:
+    post:
+      operationId: internalReleaseCapacity
+      summary: Release soft-held capacity when booking expires or is rejected
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-BKG-02
+      x-change: "unmodified"
+      security:
+        - internalAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - packageId
+                - date
+                - quantity
+                - bookingId
+              properties:
+                packageId:
+                  type: string
+                  format: uuid
+                date:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                quantity:
+                  type: integer
+                  minimum: 1
+                bookingId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Capacity hold released
+
+  /internal/availability/book:
+    post:
+      operationId: internalBookCapacity
+      summary: Convert held units to booked units upon deposit payment
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-BKG-04
+      x-change: "modified"
+      security:
+        - internalAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - packageId
+                - date
+                - quantity
+                - bookingId
+              properties:
+                packageId:
+                  type: string
+                  format: uuid
+                date:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                quantity:
+                  type: integer
+                  minimum: 1
+                bookingId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Units converted to booked
+
+  # Deprecated Legacy Binary Block Endpoints
+  /vendors/{vendorId}/availability/block:
+    post:
+      deprecated: true
+      operationId: blockDateLegacy
+      summary: (Deprecated) Manually block date
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-06
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+              properties:
+                date:
+                  $ref: "./common.yaml#/components/schemas/DateString"
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Blocked
+
+  /vendors/{vendorId}/availability/block/{blockId}:
+    delete:
+      deprecated: true
+      operationId: unblockDateLegacy
+      summary: (Deprecated) Unblock date
+      tags:
+        - Availability
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-VEN-06
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: blockId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Unblocked
+
+components:
+  schemas:
+    AvailabilityCapacity:
+      type: object
+      required:
+        - packageId
+        - date
+        - totalUnits
+        - heldUnits
+        - bookedUnits
+        - remainingUnits
+      properties:
+        packageId:
+          type: string
+          format: uuid
+        date:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        slot:
+          type: string
+          example: "FULL_DAY"
+        totalUnits:
+          type: integer
+          example: 3
+        heldUnits:
+          type: integer
+          example: 1
+        bookedUnits:
+          type: integer
+          example: 1
+        remainingUnits:
+          type: integer
+          example: 1

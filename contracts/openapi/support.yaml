@@ -1,0 +1,523 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Support Bot & Ticket Management API
+  version: "1.0.0"
+  description: Support bot FAQ resolution, automatic ticket escalation, response SLAs (4h normal, 30m urgent), and callback requests (FR-SUP-01..05).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /support/bot/message:
+    post:
+      operationId: sendBotMessage
+      summary: Send query to support bot (answers FAQs; auto-escalates to ticket after 2 failed attempts or dispute keywords)
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SUP-01
+        - FR-SUP-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  example: "What is the cancellation charge if I cancel 5 days before the event?"
+                bookingId:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        "200":
+          description: Bot response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  botReply:
+                    type: string
+                    example: "For cancellations between 3 to 7 days before event start, a 25% charge applies per Section 2.4."
+                  escalatedToTicket:
+                    type: boolean
+                    example: false
+                  ticketId:
+                    type: string
+                    format: uuid
+                    nullable: true
+
+  /support/tickets:
+    post:
+      operationId: createSupportTicket
+      summary: Create support ticket linked to booking
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SUP-02
+        - FR-SUP-05
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketInput"
+      responses:
+        "201":
+          description: Ticket created with SLA countdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+    get:
+      operationId: listUserTickets
+      summary: List tickets raised by logged-in user
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Tickets array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SupportTicket"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /support/tickets/{id}:
+    get:
+      operationId: getSupportTicket
+      summary: Get ticket details and conversation thread
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Ticket record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+    patch:
+      operationId: updateSupportTicket
+      summary: Reply to ticket or update status
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replyText:
+                  type: string
+                attachmentUrl:
+                  type: string
+                  format: uri
+      responses:
+        "200":
+          description: Ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+  /support/callbacks:
+    post:
+      operationId: requestCallback
+      summary: Request masked telephone callback from support
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-SUP-04
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                bookingId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                reason:
+                  type: string
+                  example: "Urgent issue with on-day sound vendor check-in."
+      responses:
+        "201":
+          description: Callback queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "QUEUED"
+
+  /admin/support/tickets:
+    get:
+      operationId: listAdminTickets
+      summary: Admin support dashboard with SLA filters
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - supportAgent
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-03
+        - FR-ADM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/TicketStatus"
+        - name: isUrgent
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Tickets list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SupportTicket"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /admin/support/tickets/{id}/assign:
+    patch:
+      operationId: assignTicket
+      summary: Assign ticket to support agent
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - supportAgent
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - assigneeId
+              properties:
+                assigneeId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Assigned
+
+  /admin/support/sla-status:
+    get:
+      operationId: getSlaStatusReport
+      summary: Report on approaching and breached SLAs
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: SLA status report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  breachedCount:
+                    type: integer
+                  approachingBreachCount:
+                    type: integer
+                  averageResolutionHours:
+                    type: number
+
+  # Deprecated Legacy Complaints Endpoints
+  /complaints:
+    post:
+      deprecated: true
+      operationId: createComplaintLegacy
+      summary: (Deprecated) File basic complaint
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-SUP-02
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bookingId
+                - subject
+                - description
+              properties:
+                bookingId:
+                  type: string
+                subject:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Created
+
+    get:
+      deprecated: true
+      operationId: listComplaintsLegacy
+      summary: (Deprecated) List complaints
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Complaints array
+
+  /complaints/{id}:
+    get:
+      deprecated: true
+      operationId: getComplaintLegacy
+      summary: (Deprecated) Get complaint
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - customer
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Complaint
+
+  /complaints/{id}/status:
+    patch:
+      deprecated: true
+      operationId: updateComplaintStatusLegacy
+      summary: (Deprecated) Update complaint status
+      tags:
+        - Support
+      x-owner: "B"
+      x-roles:
+        - superAdmin
+      x-requirement-ids:
+        - FR-SUP-05
+      x-change: "deprecated"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+      responses:
+        "200":
+          description: Updated
+
+components:
+  schemas:
+    CreateTicketInput:
+      type: object
+      required:
+        - subject
+        - description
+        - priority
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          nullable: true
+        subject:
+          type: string
+          example: "Vendor unresponsive on event morning"
+        description:
+          type: string
+          example: "The DJ has not checked in and event starts in 1 hour."
+        priority:
+          $ref: "./common.yaml#/components/schemas/TicketPriority"
+
+    SupportTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        raiserId:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+          nullable: true
+        subject:
+          type: string
+        priority:
+          $ref: "./common.yaml#/components/schemas/TicketPriority"
+        status:
+          $ref: "./common.yaml#/components/schemas/TicketStatus"
+        firstResponseDueAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+        resolutionDueAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

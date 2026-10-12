@@ -1,0 +1,71 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Notification Events
+  version: "1.0.0"
+  description: Asynchronous multi-channel dispatch requests (Push, SMS, Email) mapped to notifications queue (FR-NOT-01..03, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  notificationRequested:
+    address: bookme.events/notification.requested
+    messages:
+      notificationRequestedMessage:
+        $ref: "#/components/messages/NotificationRequestedMessage"
+
+operations:
+  onNotificationRequested:
+    action: receive
+    channel:
+      $ref: "#/channels/notificationRequested"
+    summary: Consumed by notifications queue workers with per-channel retries (Push via FCM, SMS via DLT, Email)
+    bindings:
+      amqp:
+        queue:
+          name: notifications
+          durable: true
+          autoDelete: false
+        bindingVersion: "0.3.0"
+
+components:
+  messages:
+    NotificationRequestedMessage:
+      name: NotificationRequested
+      title: Notification Requested Event
+      payload:
+        type: object
+        required:
+          - recipientUserId
+          - channel
+          - title
+          - message
+        properties:
+          recipientUserId:
+            type: string
+            format: uuid
+          channel:
+            type: string
+            enum:
+              - PUSH
+              - SMS
+              - EMAIL
+              - ALL
+          title:
+            type: string
+          message:
+            type: string
+          actionUrl:
+            type: string
+            nullable: true
+          isCritical:
+            type: boolean
+            default: false
+      examples:
+        - name: NotificationRequestedExample
+          payload:
+            recipientUserId: "e3a89012-3211-4a12-b512-c01928491823"
+            channel: "PUSH"
+            title: "Booking Accepted"
+            message: "Your catering request was accepted. Deposit of ₹48,000 is due within 2 hours."
+            actionUrl: "https://bookme.com/bookings/c1f1c8a6"
+            isCritical: true

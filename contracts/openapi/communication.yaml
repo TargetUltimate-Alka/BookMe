@@ -1,0 +1,455 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Communication, VoIP & PII Protection API
+  version: "1.0.0"
+  description: In-app chat with regex PII filters, strike tracking, short-lived WebRTC VoIP tokens, call duration webhooks, and dispute evidence handling (FR-COM-01..08, SRS §11.5).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /communication/threads:
+    post:
+      operationId: createOrGetThread
+      summary: Initiate or retrieve in-app conversation thread linked to booking
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-COM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bookingId
+              properties:
+                bookingId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Thread details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatThread"
+
+    get:
+      operationId: listThreads
+      summary: List conversation threads for logged-in user
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-COM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Threads array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatThread"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /communication/threads/{id}/messages:
+    get:
+      operationId: listMessages
+      summary: Get paginated messages in a chat thread
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-COM-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Messages array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatMessage"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+    post:
+      operationId: sendMessage
+      summary: Send chat message with server-side PII pattern filtering (phone, email, UPI, external links)
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-COM-01
+        - FR-COM-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - body
+              properties:
+                body:
+                  type: string
+                  example: "What is the setup time for the DJ equipment?"
+      responses:
+        "201":
+          description: Message delivered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+        "400":
+          description: PII detected (phone number, email, UPI, or external link blocked)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    $ref: "./common.yaml#/components/schemas/ErrorCode"
+                  message:
+                    type: string
+                    example: "Sharing contact details or external links is not permitted."
+                  warningStrikeCount:
+                    type: integer
+                    example: 1
+
+  /communication/calls/token:
+    post:
+      operationId: issueCallToken
+      summary: Issue short-lived WebRTC VoIP call token only to participants sharing an active booking
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-COM-01
+        - §11.5
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetUserId
+                - bookingId
+              properties:
+                targetUserId:
+                  type: string
+                  format: uuid
+                bookingId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: WebRTC token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callSessionId:
+                    type: string
+                    format: uuid
+                  rtcToken:
+                    type: string
+                  channelName:
+                    type: string
+                  expiresInSeconds:
+                    type: integer
+                    example: 120
+
+  /communication/calls/webhook:
+    post:
+      operationId: handleCallWebhook
+      summary: VoIP provider webhook recording join/leave events and calculating server-side connected duration
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - anonymous
+      x-requirement-ids:
+        - FR-COM-04
+        - §11.5
+      x-change: "new"
+      parameters:
+        - name: X-Voip-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - callSessionId
+                - event
+                - timestamp
+              properties:
+                callSessionId:
+                  type: string
+                  format: uuid
+                event:
+                  type: string
+                  enum:
+                    - CALL_CONNECTED
+                    - CALL_DISCONNECTED
+                participantId:
+                  type: string
+                timestamp:
+                  $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+      responses:
+        "200":
+          description: Call event recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recorded:
+                    type: boolean
+
+  /communication/evidence/upload-url:
+    post:
+      operationId: generateEvidenceUploadUrl
+      summary: Pre-signed upload URL for dispute or ticket attachments (up to 100MB)
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-COM-07
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fileName
+                - fileSizeBytes
+                - mimeType
+              properties:
+                fileName:
+                  type: string
+                  example: "damaged_cable.mp4"
+                fileSizeBytes:
+                  type: integer
+                  maximum: 104857600
+                  example: 52428800
+                mimeType:
+                  type: string
+      responses:
+        "200":
+          description: Evidence upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                    format: uri
+                  evidenceId:
+                    type: string
+                    format: uuid
+                  expiresInSeconds:
+                    type: integer
+                    example: 900
+
+  /communication/evidence/{id}:
+    get:
+      operationId: getEvidenceMetadata
+      summary: Fetch evidence attachment details
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-COM-07
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Evidence record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceMetadata"
+
+  /internal/leads/{callId}/qualification:
+    get:
+      operationId: getLeadQualification
+      summary: Internal service evaluation of call duration, 7-day pair uniqueness, and spam heuristics
+      tags:
+        - Communication
+      x-owner: "B"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-COM-04
+        - FR-COM-05
+      x-change: "new"
+      security:
+        - internalAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Qualification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callSessionId:
+                    type: string
+                    format: uuid
+                  connectedSeconds:
+                    type: integer
+                  isQualifiedLead:
+                    type: boolean
+                  disqualificationReason:
+                    type: string
+                    nullable: true
+
+components:
+  schemas:
+    ChatThread:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        counterpartyDisplayName:
+          type: string
+        lastMessagePreview:
+          type: string
+        updatedAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        threadId:
+          type: string
+          format: uuid
+        senderRole:
+          type: string
+        body:
+          type: string
+        sentAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    EvidenceMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSizeBytes:
+          type: integer
+        downloadUrl:
+          type: string
+          format: uri
+        uploadedAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

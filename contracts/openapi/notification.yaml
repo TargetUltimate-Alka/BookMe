@@ -1,0 +1,240 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Notifications & User Preferences API
+  version: "1.0.0"
+  description: Multi-channel notifications (Push, SMS, Email), FCM device registration, and in-app notification inbox (FR-NOT-01..03).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /notifications/devices:
+    post:
+      operationId: registerDeviceToken
+      summary: Register FCM push device token
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-NOT-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fcmToken
+                - platform
+              properties:
+                fcmToken:
+                  type: string
+                  example: "fcm_dK91f..."
+                platform:
+                  type: string
+                  enum:
+                    - ANDROID
+                    - IOS
+                    - WEB
+      responses:
+        "200":
+          description: Device token registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registered:
+                    type: boolean
+                    example: true
+
+  /notifications/devices/{token}:
+    delete:
+      operationId: unregisterDeviceToken
+      summary: Remove device token on user logout
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-NOT-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Token removed
+
+  /notifications/preferences:
+    get:
+      operationId: getNotificationPreferences
+      summary: Get user communication preferences (critical booking & payment alerts cannot be disabled)
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-NOT-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+
+    put:
+      operationId: updateNotificationPreferences
+      summary: Update marketing and non-critical notification settings
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-NOT-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+
+  /notifications/inbox:
+    get:
+      operationId: listInboxNotifications
+      summary: List in-app inbox notifications
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-NOT-01
+        - FR-NOT-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Inbox notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InboxNotification"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /notifications/inbox/{id}/read:
+    patch:
+      operationId: markNotificationAsRead
+      summary: Mark an inbox notification as read
+      tags:
+        - Notification
+      x-owner: "B"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-NOT-01
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  read:
+                    type: boolean
+                    example: true
+
+components:
+  schemas:
+    NotificationPreferences:
+      type: object
+      properties:
+        pushEnabled:
+          type: boolean
+          default: true
+        smsEnabled:
+          type: boolean
+          default: true
+        emailEnabled:
+          type: boolean
+          default: true
+        notifyMeAlertsEnabled:
+          type: boolean
+          default: true
+
+    InboxNotification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "Booking Request Accepted"
+        body:
+          type: string
+          example: "Your catering booking request was accepted. Please pay the 40% deposit within 2 hours."
+        actionUrl:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

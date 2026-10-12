@@ -1,0 +1,60 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Support Events
+  version: "1.0.0"
+  description: Support ticket creation and SLA tracking events (FR-SUP-01..05, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  ticketCreated:
+    address: bookme.events/ticket.created
+    messages:
+      ticketCreatedMessage:
+        $ref: "#/components/messages/TicketCreatedMessage"
+
+components:
+  messages:
+    TicketCreatedMessage:
+      name: TicketCreated
+      title: Support Ticket Created Event
+      payload:
+        type: object
+        required:
+          - ticketId
+          - raiserId
+          - priority
+          - firstResponseDueAt
+        properties:
+          ticketId:
+            type: string
+            format: uuid
+          raiserId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+            nullable: true
+          priority:
+            type: string
+            enum:
+              - LOW
+              - MEDIUM
+              - HIGH
+              - CRITICAL
+          firstResponseDueAt:
+            type: string
+            format: date-time
+          resolutionDueAt:
+            type: string
+            format: date-time
+      examples:
+        - name: TicketCreatedExample
+          payload:
+            ticketId: "b890f1ee-6c54-4b01-90e6-d701748f0851"
+            raiserId: "e3a89012-3211-4a12-b512-c01928491823"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            priority: "HIGH"
+            firstResponseDueAt: "2026-10-13T16:00:00.000Z"
+            resolutionDueAt: "2026-10-15T12:00:00.000Z"

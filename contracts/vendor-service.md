@@ -1,5 +1,7 @@
 # API Contract — vendor-service
 
+> **Notice (v1.0.0 Contracts):** This contract has been formalized and superseded by the OpenAPI 3.1 specifications at [`contracts/openapi/vendor.yaml`](./openapi/vendor.yaml), [`contracts/openapi/catalog.yaml`](./openapi/catalog.yaml), [`contracts/openapi/availability.yaml`](./openapi/availability.yaml), and [`contracts/openapi/search.yaml`](./openapi/search.yaml). Refer to [`contracts/README.md`](./README.md) and [`contracts/traceability.md`](./traceability.md).
+
 Owner: Person B
 
 Agree on this BEFORE writing implementation code.

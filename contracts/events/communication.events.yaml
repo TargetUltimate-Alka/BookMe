@@ -1,0 +1,77 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Communication & VoIP Events
+  version: "1.0.0"
+  description: Events emitted by in-app communication services including call duration completion (FR-COM-04, SRS §11.3).
+
+defaultContentType: application/json
+
+channels:
+  callEnded:
+    address: bookme.events/call.ended
+    messages:
+      callEndedMessage:
+        $ref: "#/components/messages/CallEndedMessage"
+
+operations:
+  onCallEnded:
+    action: receive
+    channel:
+      $ref: "#/channels/callEnded"
+    summary: Consumed by leads.billing queue worker to evaluate lead qualification rules
+    bindings:
+      amqp:
+        queue:
+          name: leads.billing
+          durable: true
+          autoDelete: false
+        bindingVersion: "0.3.0"
+
+components:
+  messages:
+    CallEndedMessage:
+      name: CallEnded
+      title: VoIP Call Ended Event
+      summary: Dispatched when both participants disconnect; contains server-computed connected seconds
+      payload:
+        type: object
+        required:
+          - callSessionId
+          - customerId
+          - vendorId
+          - connectedSeconds
+          - customerInitiated
+          - customerOtpVerified
+        properties:
+          callSessionId:
+            type: string
+            format: uuid
+          customerId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          connectedSeconds:
+            type: integer
+            minimum: 0
+            example: 48
+          customerInitiated:
+            type: boolean
+            example: true
+          customerOtpVerified:
+            type: boolean
+            example: true
+          endedAt:
+            type: string
+            format: date-time
+      examples:
+        - name: CallEndedExample
+          payload:
+            callSessionId: "b229f1ee-6c54-4b01-90e6-d701748f0822"
+            customerId: "e3a89012-3211-4a12-b512-c01928491823"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            connectedSeconds: 48
+            customerInitiated: true
+            customerOtpVerified: true
+            endedAt: "2026-10-13T12:00:48.000Z"

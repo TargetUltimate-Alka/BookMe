@@ -1,0 +1,798 @@
+openapi: "3.1.0"
+info:
+  title: BookMe Booking State Machine API
+  version: "1.0.0"
+  description: Booking requests, capacity soft-holds, negotiation counter-offers, rush quotes, cancellation penalty calculation, vendor GPS check-in, and completion (FR-BKG-01..09, FR-CAN-01..04, Section 5).
+servers:
+  - url: https://api.bookme.com/v1
+    description: Production API Gateway
+paths:
+  /bookings:
+    post:
+      operationId: createBookingRequest
+      summary: Submit new booking request (transitions to REQUESTED state with capacity soft-hold)
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-BKG-01
+        - FR-BKG-06
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "./common.yaml#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingInput"
+      responses:
+        "201":
+          description: Booking request created with soft-hold
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+        "409":
+          description: Capacity unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: listBookings
+      summary: List user bookings (customer or vendor)
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-BKG-01
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "./common.yaml#/components/schemas/BookingStatus"
+        - $ref: "./common.yaml#/components/parameters/LimitQuery"
+        - $ref: "./common.yaml#/components/parameters/CursorQuery"
+      responses:
+        "200":
+          description: Bookings array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Booking"
+                  meta:
+                    $ref: "./common.yaml#/components/schemas/CursorPaginationMeta"
+
+  /bookings/{id}:
+    get:
+      operationId: getBookingById
+      summary: Fetch booking details, snapshot pricing, and countdown timers
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+        - financeAdmin
+      x-requirement-ids:
+        - FR-BKG-01
+        - FR-VEN-10
+      x-change: "unmodified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Booking record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /bookings/{id}/accept:
+    post:
+      operationId: acceptBooking
+      summary: Vendor accepts booking request; starts 2-hour deposit payment timer
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-BKG-02
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Booking transitioned to ACCEPTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "409":
+          description: Invalid state transition
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /bookings/{id}/reject:
+    post:
+      operationId: rejectBooking
+      summary: Vendor rejects booking with mandatory reason; releases soft-hold
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-BKG-02
+        - FR-BKG-09
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Unavailable due to prior commitment"
+      responses:
+        "200":
+          description: Booking rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/counter:
+    post:
+      operationId: submitCounterOffer
+      summary: Propose counter-offer (max 3 per booking, valid for 6 hours)
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-BKG-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - proposedAmountPaise
+              properties:
+                proposedAmountPaise:
+                  $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+                note:
+                  type: string
+                  example: "Includes extra hour for DJ setup."
+      responses:
+        "201":
+          description: Counter-offer recorded; state moved to NEGOTIATING
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CounterOffer"
+        "400":
+          description: Maximum 3 counter-offers limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "./common.yaml#/components/schemas/ErrorResponse"
+
+  /bookings/{id}/counter/{counterId}/accept:
+    post:
+      operationId: acceptCounterOffer
+      summary: Accept active counter-offer price; moves booking to ACCEPTED
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-BKG-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: counterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Counter accepted and price snapshot updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/delivery:
+    patch:
+      operationId: selectDeliveryChoice
+      summary: Choose delivery or self-pickup mode before balance due date
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-BKG-05
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deliveryMode
+              properties:
+                deliveryMode:
+                  type: string
+                  enum:
+                    - DELIVERY
+                    - SELF_PICKUP
+                deliveryAddress:
+                  $ref: "./common.yaml#/components/schemas/Location"
+      responses:
+        "200":
+          description: Delivery selection saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/quote/rush:
+    get:
+      operationId: calculateRushQuote
+      summary: Preview rush surcharge percentage for bookings requested within threshold (default 48 hours)
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-BKG-06
+      x-change: "new"
+      parameters:
+        - name: eventDate
+          in: query
+          required: true
+          schema:
+            $ref: "./common.yaml#/components/schemas/DateString"
+        - name: baseAmountPaise
+          in: query
+          required: true
+          schema:
+            $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+      responses:
+        "200":
+          description: Rush surcharge calculation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isRush:
+                    type: boolean
+                    example: true
+                  rushSurchargePercent:
+                    type: number
+                    example: 15.0
+                  rushSurchargePaise:
+                    $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+                  totalAmountPaise:
+                    $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+
+  /bookings/{id}/check-in:
+    post:
+      operationId: vendorCheckIn
+      summary: Vendor taps Arrived on event day with GPS coordinates
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - vendor
+      x-requirement-ids:
+        - FR-BKG-07
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - latitude
+                - longitude
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                longitude:
+                  type: number
+                  format: float
+      responses:
+        "200":
+          description: Check-in recorded; moves booking to IN_PROGRESS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/confirm-completion:
+    post:
+      operationId: confirmBookingCompletion
+      summary: Customer confirms service completion
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+      x-requirement-ids:
+        - FR-BKG-08
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Booking COMPLETED; schedules payout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/cancellation-preview:
+    get:
+      operationId: previewCancellationCharges
+      summary: Calculate applicable cancellation charges or vendor penalties per SRS Section 2.4
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-CAN-01
+        - FR-CAN-02
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Cancellation quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancellationPreview"
+
+  /bookings/{id}/cancel:
+    post:
+      operationId: cancelBooking
+      summary: Cancel booking applying penalty/charge matrix
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-CAN-01
+        - FR-CAN-02
+        - FR-CAN-03
+      x-change: "modified"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "./common.yaml#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Event postponed"
+                isForceMajeure:
+                  type: boolean
+                  default: false
+                evidenceUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+      responses:
+        "200":
+          description: Booking cancelled; refund and penalty events emitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/dispute:
+    post:
+      operationId: raiseBookingDispute
+      summary: Raise dispute on booking (pauses automated escrow payout)
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+      x-requirement-ids:
+        - FR-PAY-06
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "Vendor failed to provide sound system equipment"
+      responses:
+        "200":
+          description: Booking transitioned to DISPUTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/timeline:
+    get:
+      operationId: getBookingTimeline
+      summary: Complete transition audit history
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - customer
+        - vendor
+        - superAdmin
+        - supportAgent
+      x-requirement-ids:
+        - FR-BKG-03
+      x-change: "new"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BookingTimelineEvent"
+
+  /internal/bookings/{id}:
+    get:
+      operationId: getInternalBooking
+      summary: Microservice-to-microservice booking snapshot
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-BKG-01
+      x-change: "unmodified"
+      security:
+        - internalAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /internal/bookings/{id}/confirm-deposit:
+    patch:
+      operationId: internalConfirmDeposit
+      summary: Confirm deposit payment and move to CONFIRMED
+      tags:
+        - Booking
+      x-owner: "A"
+      x-roles:
+        - internal
+      x-requirement-ids:
+        - FR-BKG-04
+      x-change: "modified"
+      security:
+        - internalAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Booking CONFIRMED
+
+components:
+  schemas:
+    CreateBookingInput:
+      type: object
+      required:
+        - vendorId
+        - packageId
+        - eventDate
+        - quantity
+      properties:
+        eventItemId:
+          type: string
+          format: uuid
+          nullable: true
+        vendorId:
+          type: string
+          format: uuid
+        packageId:
+          type: string
+          format: uuid
+        eventDate:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        quantity:
+          type: integer
+          default: 1
+        addonIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          default: []
+        notes:
+          type: string
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventItemId:
+          type: string
+          format: uuid
+          nullable: true
+        customerId:
+          type: string
+          format: uuid
+        vendorId:
+          type: string
+          format: uuid
+        packageId:
+          type: string
+          format: uuid
+        status:
+          $ref: "./common.yaml#/components/schemas/BookingStatus"
+        eventDate:
+          $ref: "./common.yaml#/components/schemas/DateString"
+        agreedAmountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        depositAmountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        balanceAmountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        securityDepositPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        rushSurchargePaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        depositDueAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+          nullable: true
+        balanceDueAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+          nullable: true
+        createdAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+
+    CounterOffer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        proposedByRole:
+          type: string
+        amountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        expiresAt:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACCEPTED
+            - REJECTED
+            - EXPIRED
+
+    CancellationPreview:
+      type: object
+      properties:
+        cancellingPartyRole:
+          type: string
+        chargePercent:
+          type: number
+        chargeAmountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        refundAmountPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+        vendorPenaltyPaise:
+          $ref: "./common.yaml#/components/schemas/CurrencyPaise"
+
+    BookingTimelineEvent:
+      type: object
+      properties:
+        fromStatus:
+          $ref: "./common.yaml#/components/schemas/BookingStatus"
+          nullable: true
+        toStatus:
+          $ref: "./common.yaml#/components/schemas/BookingStatus"
+        actorId:
+          type: string
+          format: uuid
+        note:
+          type: string
+        timestamp:
+          $ref: "./common.yaml#/components/schemas/DateTimeUtc"

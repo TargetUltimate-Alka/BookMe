@@ -1,5 +1,7 @@
 # API Contract — event-booking-service
 
+> **Notice (v1.0.0 Contracts):** This contract has been formalized and superseded by the OpenAPI 3.1 specifications at [`contracts/openapi/planner.yaml`](./openapi/planner.yaml) and [`contracts/openapi/booking.yaml`](./openapi/booking.yaml), and AsyncAPI 3.0 events at [`contracts/events/booking.events.yaml`](./events/booking.events.yaml). Refer to [`contracts/README.md`](./README.md) and [`contracts/traceability.md`](./traceability.md).
+
 Owner: TargetUltimate-Alka (Person C)  
 Service Port: `4003`  
 Base Path: Mounted directly under `/events`, `/bookings`, `/checklist`, `/admin`, `/internal` in this service. When accessed via API Gateway, the gateway adds the `/api` prefix (e.g. `/api/events`, `/api/bookings`).

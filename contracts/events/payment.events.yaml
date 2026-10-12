@@ -1,0 +1,246 @@
+asyncapi: "3.0.0"
+info:
+  title: BookMe Payment Domain Events
+  version: "1.0.0"
+  description: Asynchronous payment events (deposit succeeded, balance succeeded, balance overdue, refund processed, payout scheduled, payout released, damage claim decided) per SRS §11.3 & §11.5.
+
+defaultContentType: application/json
+
+channels:
+  depositSucceeded:
+    address: bookme.events/payment.deposit.succeeded
+    messages:
+      depositSucceededMessage:
+        $ref: "#/components/messages/DepositSucceededMessage"
+  balanceSucceeded:
+    address: bookme.events/payment.balance.succeeded
+    messages:
+      balanceSucceededMessage:
+        $ref: "#/components/messages/BalanceSucceededMessage"
+  balanceOverdue:
+    address: bookme.events/payment.balance.overdue
+    messages:
+      balanceOverdueMessage:
+        $ref: "#/components/messages/BalanceOverdueMessage"
+  refundProcessed:
+    address: bookme.events/payment.refund.processed
+    messages:
+      refundProcessedMessage:
+        $ref: "#/components/messages/RefundProcessedMessage"
+  payoutScheduled:
+    address: bookme.events/payment.payout.scheduled
+    messages:
+      payoutScheduledMessage:
+        $ref: "#/components/messages/PayoutScheduledMessage"
+  payoutReleased:
+    address: bookme.events/payment.payout.released
+    messages:
+      payoutReleasedMessage:
+        $ref: "#/components/messages/PayoutReleasedMessage"
+  damageClaimDecided:
+    address: bookme.events/payment.damage_claim.decided
+    messages:
+      damageClaimDecidedMessage:
+        $ref: "#/components/messages/DamageClaimDecidedMessage"
+
+components:
+  messages:
+    DepositSucceededMessage:
+      name: DepositSucceeded
+      title: Deposit Payment Succeeded
+      payload:
+        type: object
+        required:
+          - paymentId
+          - bookingId
+          - amountPaise
+          - gatewayRef
+        properties:
+          paymentId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          amountPaise:
+            type: integer
+          gatewayRef:
+            type: string
+      examples:
+        - name: DepositSuccessExample
+          payload:
+            paymentId: "b890f1ee-6c54-4b01-90e6-d701748f0812"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            amountPaise: 4800000
+            gatewayRef: "pay_gw_98410294"
+
+    BalanceSucceededMessage:
+      name: BalanceSucceeded
+      title: Balance Payment Succeeded
+      payload:
+        type: object
+        required:
+          - paymentId
+          - bookingId
+          - amountPaise
+          - gatewayRef
+        properties:
+          paymentId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          amountPaise:
+            type: integer
+          gatewayRef:
+            type: string
+      examples:
+        - name: BalanceSuccessExample
+          payload:
+            paymentId: "a190f1ee-6c54-4b01-90e6-d701748f0855"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            amountPaise: 7200000
+            gatewayRef: "pay_gw_98410299"
+
+    BalanceOverdueMessage:
+      name: BalanceOverdue
+      title: Balance Payment Overdue
+      payload:
+        type: object
+        required:
+          - bookingId
+          - overdueSince
+        properties:
+          bookingId:
+            type: string
+            format: uuid
+          overdueSince:
+            type: string
+            format: date-time
+      examples:
+        - name: BalanceOverdueExample
+          payload:
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            overdueSince: "2026-12-13T12:00:00.000Z"
+
+    RefundProcessedMessage:
+      name: RefundProcessed
+      title: Refund Processed
+      payload:
+        type: object
+        required:
+          - refundId
+          - bookingId
+          - amountPaise
+          - reasonCode
+        properties:
+          refundId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          amountPaise:
+            type: integer
+          reasonCode:
+            type: string
+      examples:
+        - name: RefundProcessedExample
+          payload:
+            refundId: "f990f1ee-6c54-4b01-90e6-d701748f0899"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            amountPaise: 3600000
+            reasonCode: "CUSTOMER_CANCELLATION"
+
+    PayoutScheduledMessage:
+      name: PayoutScheduled
+      title: Payout Scheduled
+      payload:
+        type: object
+        required:
+          - payoutId
+          - vendorId
+          - bookingId
+          - scheduledReleaseAt
+          - amountPaise
+        properties:
+          payoutId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          scheduledReleaseAt:
+            type: string
+            format: date-time
+          amountPaise:
+            type: integer
+      examples:
+        - name: PayoutScheduledExample
+          payload:
+            payoutId: "d190f1ee-6c54-4b01-90e6-d701748f0877"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            scheduledReleaseAt: "2026-12-16T12:00:00.000Z"
+            amountPaise: 11400000
+
+    PayoutReleasedMessage:
+      name: PayoutReleased
+      title: Payout Escrow Released
+      payload:
+        type: object
+        required:
+          - payoutId
+          - vendorId
+          - amountPaise
+        properties:
+          payoutId:
+            type: string
+            format: uuid
+          vendorId:
+            type: string
+            format: uuid
+          amountPaise:
+            type: integer
+      examples:
+        - name: PayoutReleasedExample
+          payload:
+            payoutId: "d190f1ee-6c54-4b01-90e6-d701748f0877"
+            vendorId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+            amountPaise: 11400000
+
+    DamageClaimDecidedMessage:
+      name: DamageClaimDecided
+      title: Damage Claim Decided
+      payload:
+        type: object
+        required:
+          - claimId
+          - bookingId
+          - approvedAmountPaise
+          - decision
+        properties:
+          claimId:
+            type: string
+            format: uuid
+          bookingId:
+            type: string
+            format: uuid
+          approvedAmountPaise:
+            type: integer
+          decision:
+            type: string
+            enum:
+              - UPHELD
+              - REJECTED
+      examples:
+        - name: DamageClaimDecidedExample
+          payload:
+            claimId: "e190f1ee-6c54-4b01-90e6-d701748f0811"
+            bookingId: "c1f1c8a6-8096-4a57-8984-b040e698ea12"
+            approvedAmountPaise: 500000
+            decision: "UPHELD"

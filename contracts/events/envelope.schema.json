@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.bookme.com/events/envelope.schema.json",
+  "title": "BookMeEventEnvelope",
+  "description": "Standard CloudEvents-aligned asynchronous message envelope for all BookMe domain events.",
+  "type": "object",
+  "required": [
+    "eventId",
+    "type",
+    "version",
+    "occurredAt",
+    "correlationId",
+    "idempotencyKey",
+    "producer",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Globally unique identifier for this specific event occurrence.",
+      "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    "type": {
+      "type": "string",
+      "description": "Hierarchical domain event routing key (e.g. booking.requested, payment.deposit.succeeded).",
+      "example": "booking.requested"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic schema version of the event payload.",
+      "example": "1.0.0"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when the event was generated.",
+      "example": "2026-10-13T12:00:00.000Z"
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "End-to-end tracing identifier initiated by the gateway or root request.",
+      "example": "corr_01J9X4Y97R43098"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "description": "Deduplication key used by idempotent consumers.",
+      "example": "idem_booking_c1f1c8a6_req"
+    },
+    "producer": {
+      "type": "string",
+      "enum": [
+        "auth-service",
+        "vendor-service",
+        "event-booking-service",
+        "payment-feedback-service"
+      ],
+      "description": "Identifier of the microservice producing this event.",
+      "example": "event-booking-service"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Domain-specific event data payload."
+    }
+  }
+}
