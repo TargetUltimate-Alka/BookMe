@@ -1,21 +1,21 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 
 /**
  * Middleware to authenticate requests using JWT Bearer token
- * Adheres strictly to the token format defined in contracts/auth-service.md:
- * Payload: { sub: "usr_...", role: "customer" | "vendor", iat: ..., exp: ... }
+ * Token format: { sub: "...", role: "...", iat: ..., exp: ... }
  */
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
+  const traceId = req.traceId || req.headers['x-request-id'] || `req_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
-      error: {
-        code: 'MISSING_AUTH_TOKEN',
-        message: 'Authentication token is required',
-        details: [],
-      },
+      code: 'UNAUTHORIZED',
+      message: 'Authentication token is required',
+      details: [],
+      traceId,
     });
   }
 
@@ -32,11 +32,10 @@ function authMiddleware(req, res, next) {
   } catch (err) {
     const isExpired = err.name === 'TokenExpiredError';
     return res.status(401).json({
-      error: {
-        code: isExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
-        message: isExpired ? 'Access token has expired' : 'Invalid authentication token',
-        details: [],
-      },
+      code: 'UNAUTHORIZED',
+      message: isExpired ? 'Access token has expired' : 'Invalid authentication token',
+      details: [],
+      traceId,
     });
   }
 }

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const config = require('../config');
 
 /**
@@ -6,14 +7,14 @@ const config = require('../config');
  */
 function internalAuth(req, res, next) {
   const internalKey = req.header('X-Internal-Key');
+  const traceId = req.traceId || req.headers['x-request-id'] || `req_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
 
   if (!internalKey || internalKey !== config.internalApiKey) {
     return res.status(403).json({
-      error: {
-        code: 'FORBIDDEN',
-        message: 'Invalid or missing internal service key',
-        details: [],
-      },
+      code: 'FORBIDDEN',
+      message: 'Invalid or missing internal service key',
+      details: [],
+      traceId,
     });
   }
 
