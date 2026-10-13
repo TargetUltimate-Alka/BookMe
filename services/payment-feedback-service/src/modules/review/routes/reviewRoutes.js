@@ -13,6 +13,13 @@ router.post(
   reviewController.createReview
 );
 
+// POST /api/reviews/:reviewId/reply (FR-REV-03: Single public vendor reply per review)
+router.post(
+  '/:reviewId/reply',
+  authMiddleware,
+  reviewController.replyToReview
+);
+
 // GET /api/reviews?vendorId=vnd_456
 router.get(
   '/',

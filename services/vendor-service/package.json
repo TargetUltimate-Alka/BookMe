@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "node tests/demoData.test.js"
+    "seed:demo": "node src/scripts/generateDemoData.js",
+    "test:srs": "node --test tests/srsVendorModule.test.js",
+    "test:demo": "node tests/demoData.test.js",
+    "test:integration": "node test/integration.test.js",
+    "test": "node --test tests/srsVendorModule.test.js && node tests/demoData.test.js && node test/integration.test.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.6.0",
