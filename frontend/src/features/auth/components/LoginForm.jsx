@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export function LoginForm({ onSwitchToRegister }) {
+export function LoginForm({
+  onSwitchToRegister,
+  initialEmail = '',
+  registrationSuccessMessage = null,
+  bookingIntent = null,
+  onLoginSuccess = null,
+}) {
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [apiError, setApiError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
 
   const validate = () => {
     const errors = {};
@@ -38,11 +51,13 @@ export function LoginForm({ onSwitchToRegister }) {
 
     setIsSubmitting(true);
     try {
-      await login({
+      const loggedInUser = await login({
         email: email.trim(),
         password,
       });
-      // Successful login updates AuthContext, App handles redirection
+      if (onLoginSuccess) {
+        onLoginSuccess(loggedInUser);
+      }
     } catch (err) {
       setApiError(err.message || 'Invalid email or password');
     } finally {
@@ -52,6 +67,30 @@ export function LoginForm({ onSwitchToRegister }) {
 
   return (
     <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      {/* Registration Success Banner */}
+      {registrationSuccessMessage && (
+        <div
+          className="auth-alert-banner"
+          style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}
+          role="status"
+        >
+          <span>✅ {registrationSuccessMessage}</span>
+        </div>
+      )}
+
+      {/* Booking Continuity Alert Banner */}
+      {bookingIntent && (
+        <div
+          className="auth-alert-banner"
+          style={{ background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe' }}
+          role="status"
+        >
+          <span>
+            ⚡ Sign in to finalize your booking with <strong>{bookingIntent.vendorName}</strong> ({bookingIntent.packageName || 'Selected Package'}).
+          </span>
+        </div>
+      )}
+
       {apiError && (
         <div className="auth-alert-banner auth-alert-danger" role="alert">
           <span>⚠️ {apiError}</span>
@@ -83,9 +122,19 @@ export function LoginForm({ onSwitchToRegister }) {
 
       {/* Password Field */}
       <div className="auth-field-group">
-        <label className="auth-label" htmlFor="login-password">
-          Password
-        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label className="auth-label" htmlFor="login-password" style={{ margin: 0 }}>
+            Password
+          </label>
+          <button
+            type="button"
+            className="auth-link"
+            style={{ fontSize: '0.75rem' }}
+            onClick={() => setShowForgotPassword(true)}
+          >
+            Forgot password?
+          </button>
+        </div>
         <div className="auth-input-wrap">
           <input
             id="login-password"
@@ -113,6 +162,13 @@ export function LoginForm({ onSwitchToRegister }) {
         {fieldErrors.password && <span className="auth-field-error">{fieldErrors.password}</span>}
       </div>
 
+      {/* Password Recovery Info Note */}
+      {showForgotPassword && (
+        <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>
+          ℹ️ For demonstration accounts, you can use password <strong>password123</strong> or click one of the instant demo buttons below.
+        </div>
+      )}
+
       {/* Submit Button */}
       <button type="submit" className="auth-submit-btn" disabled={isSubmitting}>
         {isSubmitting ? (
@@ -121,7 +177,7 @@ export function LoginForm({ onSwitchToRegister }) {
             <span>Signing in...</span>
           </>
         ) : (
-          <span>Sign In to BookMe</span>
+          <span>{bookingIntent ? 'Sign In & Continue Booking ⚡' : 'Sign In to BookMe'}</span>
         )}
       </button>
 

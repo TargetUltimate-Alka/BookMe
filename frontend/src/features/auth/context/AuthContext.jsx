@@ -109,17 +109,20 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Register handler
-  const register = async ({ name, email, password, role }) => {
+  // Register handler (FR-ONB-01 / Phase Four: do not auto-login unless requested)
+  const register = async ({ name, email, password, role, autoLogin = false }) => {
     setIsLoading(true);
     setError(null);
     try {
       // 1. Create account
-      await authApi.register({ name, email, password, role });
-      // 2. Automatically log in to issue tokens
-      const loginRes = await authApi.login({ email, password });
-      saveSession(loginRes.accessToken, loginRes.refreshToken, loginRes.user);
-      return loginRes.user;
+      const newUser = await authApi.register({ name, email, password, role });
+      if (autoLogin) {
+        // 2. Automatically log in to issue tokens if explicitly opted in
+        const loginRes = await authApi.login({ email, password });
+        saveSession(loginRes.accessToken, loginRes.refreshToken, loginRes.user);
+        return loginRes.user;
+      }
+      return newUser;
     } catch (err) {
       setError(err.message);
       throw err;
