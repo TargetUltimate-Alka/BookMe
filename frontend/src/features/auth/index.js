@@ -5,4 +5,5 @@ export * from './context/AuthContext';
 export * from './components/LoginForm';
 export * from './components/RegisterForm';
 export * from './components/UserProfileModal';
+export * from './components/UserProfilePage';
 export * from './components/AuthPage';

@@ -21,19 +21,83 @@ import {
   useAuth,
   AuthPage,
   UserProfileModal,
+  UserProfilePage,
 } from "./features/auth/index.js";
+
+// Helper to parse window.location.hash into view and params
+function parseHash(hash) {
+  if (!hash || hash === "#" || hash === "#/") {
+    return { view: "marketplace", params: {} };
+  }
+  const clean = hash.replace(/^#\/?/, "");
+  const [pathPart, queryPart] = clean.split("?");
+  const view = pathPart || "marketplace";
+  const params = {};
+  if (queryPart) {
+    const searchParams = new URLSearchParams(queryPart);
+    for (const [k, v] of searchParams.entries()) {
+      params[k] = v;
+    }
+  }
+  return { view, params };
+}
+
+// Helper to build window.location.hash from view and params
+function buildHash(view, params = {}) {
+  let hash = `#/${view}`;
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") {
+      searchParams.set(k, v);
+    }
+  });
+  const q = searchParams.toString();
+  if (q) hash += `?${q}`;
+  return hash;
+}
+
+const PROTECTED_VIEWS = [
+  "events",
+  "create-event",
+  "event-dashboard",
+  "bookings",
+  "booking-details",
+  "booking-confirmation",
+  "profile",
+  "vendor-portal",
+  "vendor-requests",
+  "vendor-request-details",
+  "admin-bookings",
+  "admin-booking-details",
+];
 
 function AppContent() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  // Navigation View: 'marketplace' | 'events' | 'create-event' | 'event-dashboard' |
-  // 'bookings' | 'booking-details' | 'booking-confirmation' | 'vendor-portal' |
-  // 'vendor-requests' | 'vendor-request-details' | 'admin-bookings' | 'admin-booking-details' |
-  // 'discover' | 'auth'
-  const [currentView, setCurrentView] = useState("marketplace");
-  const [selectedEventId, setSelectedEventId] = useState(null);
-  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  // Navigation State
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      return parseHash(window.location.hash).view;
+    }
+    return "marketplace";
+  });
+  const [selectedEventId, setSelectedEventId] = useState(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      return parseHash(window.location.hash).params.eventId || null;
+    }
+    return null;
+  });
+  const [selectedBookingId, setSelectedBookingId] = useState(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      return parseHash(window.location.hash).params.bookingId || null;
+    }
+    return null;
+  });
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+
+  // Marketplace filter continuity
+  const [marketplaceCategory, setMarketplaceCategory] = useState("all");
+  const [marketplaceCity, setMarketplaceCity] = useState("all");
 
   // Booking Flow & Continuity State
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -52,7 +116,60 @@ function AppContent() {
   const [authRole, setAuthRole] = useState("customer");
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Sync client auth context & resume pending bookings upon login
+  // Core navigation function that synchronizes Browser History (popstate / back arrow)
+  const navigateTo = useCallback((view, params = {}, replace = false) => {
+    const targetHash = buildHash(view, params);
+    if (replace) {
+      window.history.replaceState({ view, params }, "", targetHash);
+    } else if (window.location.hash !== targetHash) {
+      window.history.pushState({ view, params }, "", targetHash);
+    }
+
+    setCurrentView(view);
+    if (params.eventId !== undefined) setSelectedEventId(params.eventId);
+    if (params.bookingId !== undefined) setSelectedBookingId(params.bookingId);
+    if (params.tab !== undefined) setAuthTab(params.tab);
+    if (params.role !== undefined) setAuthRole(params.role);
+    if (params.category !== undefined) setMarketplaceCategory(params.category);
+    if (params.city !== undefined) setMarketplaceCity(params.city);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  // Listen for Browser Back (<-) and Forward (->) navigation buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const { view, params } = parseHash(window.location.hash);
+      setCurrentView(view);
+      if (params.eventId !== undefined) setSelectedEventId(params.eventId);
+      if (params.bookingId !== undefined) setSelectedBookingId(params.bookingId);
+      if (params.tab !== undefined) setAuthTab(params.tab);
+      if (params.role !== undefined) setAuthRole(params.role);
+      if (params.category !== undefined) setMarketplaceCategory(params.category);
+      if (params.city !== undefined) setMarketplaceCity(params.city);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("hashchange", handlePopState);
+
+    // Initial load setup
+    if (window.location.hash) {
+      const { view, params } = parseHash(window.location.hash);
+      setCurrentView(view);
+      if (params.eventId) setSelectedEventId(params.eventId);
+      if (params.bookingId) setSelectedBookingId(params.bookingId);
+      if (params.tab) setAuthTab(params.tab);
+      if (params.role) setAuthRole(params.role);
+    } else {
+      window.history.replaceState({ view: "marketplace" }, "", "#/marketplace");
+    }
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("hashchange", handlePopState);
+    };
+  }, []);
+
+  // Sync client auth context & handle post-login redirection
   useEffect(() => {
     if (user && user.id) {
       setAuthContext(user.id, user.role);
@@ -79,23 +196,46 @@ function AppContent() {
           // ignore
         }
         if (user.role === "customer") {
-          setCurrentView("marketplace");
+          navigateTo("marketplace", {}, true);
         }
         return;
       }
 
-      // If user signed in normally without pending booking intent
+      // If user signed in from auth view: REDIRECT TO THEIR OWN PROFILE!
       if (currentView === "auth") {
         if (user.role === "vendor") {
-          setCurrentView("vendor-portal");
+          navigateTo("profile", { role: "vendor" }, true);
         } else if (user.role === "admin") {
-          setCurrentView("admin-bookings");
+          navigateTo("admin-bookings", {}, true);
         } else {
-          setCurrentView("marketplace");
+          // Customer sign-in should take them directly to their own profile!
+          navigateTo("profile", {}, true);
         }
       }
     }
-  }, [user, currentView, pendingBookingIntent]);
+  }, [user, currentView, pendingBookingIntent, navigateTo]);
+
+  // Protected Routes Guard: if signed out user tries to view private page, redirect to marketplace
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && PROTECTED_VIEWS.includes(currentView)) {
+      navigateTo("marketplace", {}, true);
+    }
+  }, [isLoading, isAuthenticated, currentView, navigateTo]);
+
+  // Complete sign-out and session invalidation
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // Continue client cleanup even on network failure
+    }
+    setSelectedEventId(null);
+    setSelectedBookingId(null);
+    setConfirmedBooking(null);
+    setIsBookModalOpen(false);
+    setIsProfileModalOpen(false);
+    navigateTo("marketplace", {}, true);
+  };
 
   // Unified Book Now handler with guest continuity
   const handleBookNow = useCallback(
@@ -122,7 +262,7 @@ function AppContent() {
           // ignore
         }
         setAuthTab("login");
-        setCurrentView("auth");
+        navigateTo("auth", { tab: "login" });
         return;
       }
 
@@ -130,7 +270,7 @@ function AppContent() {
       setVendorToBook(bookingData);
       setIsBookModalOpen(true);
     },
-    [isAuthenticated]
+    [isAuthenticated, navigateTo]
   );
 
   // 1. Initial authentication loading state
@@ -165,7 +305,7 @@ function AppContent() {
     );
   }
 
-  // 2. Authentication View (when user explicitly clicks Sign In / Sign Up, or is redirected for booking)
+  // 2. Authentication View (Sign In / Register)
   if (currentView === "auth") {
     return (
       <div className="page-shell" style={{ padding: "20px 24px" }}>
@@ -175,7 +315,7 @@ function AppContent() {
         >
           <div
             className="brand-wrap cursor-pointer"
-            onClick={() => setCurrentView("marketplace")}
+            onClick={() => navigateTo("marketplace")}
           >
             <div className="brand-mark">B</div>
             <div>
@@ -187,7 +327,7 @@ function AppContent() {
             <button
               type="button"
               className="marketplace-header-btn ghost"
-              onClick={() => setCurrentView("marketplace")}
+              onClick={() => navigateTo("marketplace")}
               style={{ fontSize: "0.85rem" }}
             >
               ← Back to Marketplace
@@ -202,10 +342,10 @@ function AppContent() {
             bookingIntent={pendingBookingIntent}
             onCancel={() => {
               setPendingBookingIntent(null);
-              setCurrentView("marketplace");
+              navigateTo("marketplace");
             }}
             onLoginSuccess={() => {
-              // Continuity is handled in user sync useEffect
+              // Continuity and profile redirect handled in user sync useEffect
             }}
           />
         </main>
@@ -220,37 +360,29 @@ function AppContent() {
         <MarketplacePage
           user={user}
           isAuthenticated={isAuthenticated}
+          initialCategory={marketplaceCategory}
+          initialLocation={marketplaceCity}
           onBookNow={handleBookNow}
           onNavigateToAuth={(tab, options = {}) => {
-            setAuthTab(tab || "login");
-            if (options.role) setAuthRole(options.role);
-            setCurrentView("auth");
+            navigateTo("auth", { tab: tab || "login", role: options.role || "customer" });
           }}
           onNavigateToBookings={() => {
-            if (isAuthenticated) setCurrentView("bookings");
-            else {
-              setAuthTab("login");
-              setCurrentView("auth");
-            }
+            if (isAuthenticated) navigateTo("bookings");
+            else navigateTo("auth", { tab: "login" });
           }}
           onNavigateToEvents={() => {
-            if (isAuthenticated) setCurrentView("events");
-            else {
-              setAuthTab("login");
-              setCurrentView("auth");
-            }
+            if (isAuthenticated) navigateTo("events");
+            else navigateTo("auth", { tab: "login" });
           }}
           onNavigateToVendorPortal={() => {
             if (isAuthenticated && user?.role === "vendor") {
-              setCurrentView("vendor-portal");
+              navigateTo("vendor-portal");
             } else {
-              setAuthTab("login");
-              setAuthRole("vendor");
-              setCurrentView("auth");
+              navigateTo("auth", { tab: "login", role: "vendor" });
             }
           }}
-          onOpenProfile={() => setIsProfileModalOpen(true)}
-          onLogout={logout}
+          onOpenProfile={() => navigateTo("profile")}
+          onLogout={handleLogout}
         />
 
         {/* Book Vendor Modal */}
@@ -261,12 +393,12 @@ function AppContent() {
             vendorInfo={vendorToBook}
             onCreateNewEvent={() => {
               setIsBookModalOpen(false);
-              setCurrentView("create-event");
+              navigateTo("create-event");
             }}
             onSuccess={(bkg) => {
               setIsBookModalOpen(false);
               setSelectedBookingId(bkg.id);
-              setCurrentView("booking-details");
+              navigateTo("booking-details", { bookingId: bkg.id });
             }}
           />
         )}
@@ -280,7 +412,7 @@ function AppContent() {
     );
   }
 
-  // 4. Authenticated Application Shell (Customer Events, Bookings, Vendor Portal, Admin Oversight)
+  // 4. Authenticated Application Shell (Customer Events, Bookings, User Profile, Vendor Portal, Admin Oversight)
   const activeRole = user?.role || "customer";
 
   return (
@@ -288,7 +420,7 @@ function AppContent() {
       <header className="topbar">
         <div
           className="brand-wrap cursor-pointer"
-          onClick={() => setCurrentView("marketplace")}
+          onClick={() => navigateTo("marketplace")}
           title="Return to BookMe Marketplace"
         >
           <div className="brand-mark">B</div>
@@ -304,7 +436,7 @@ function AppContent() {
           <button
             type="button"
             className={currentView === "marketplace" ? "active" : ""}
-            onClick={() => setCurrentView("marketplace")}
+            onClick={() => navigateTo("marketplace")}
           >
             Marketplace ⚡
           </button>
@@ -314,7 +446,7 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "events" ? "active" : ""}
-                onClick={() => setCurrentView("events")}
+                onClick={() => navigateTo("events")}
               >
                 My Events
               </button>
@@ -322,7 +454,7 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "bookings" ? "active" : ""}
-                onClick={() => setCurrentView("bookings")}
+                onClick={() => navigateTo("bookings")}
               >
                 My Bookings
               </button>
@@ -330,7 +462,7 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "create-event" ? "active" : ""}
-                onClick={() => setCurrentView("create-event")}
+                onClick={() => navigateTo("create-event")}
               >
                 Create Event
               </button>
@@ -338,9 +470,17 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "discover" ? "active" : ""}
-                onClick={() => setCurrentView("discover")}
+                onClick={() => navigateTo("discover")}
               >
                 Find Vendors
+              </button>
+
+              <button
+                type="button"
+                className={currentView === "profile" ? "active" : ""}
+                onClick={() => navigateTo("profile")}
+              >
+                My Profile
               </button>
             </>
           )}
@@ -350,7 +490,7 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "vendor-portal" ? "active" : ""}
-                onClick={() => setCurrentView("vendor-portal")}
+                onClick={() => navigateTo("vendor-portal")}
               >
                 Operating Portal
               </button>
@@ -358,21 +498,38 @@ function AppContent() {
               <button
                 type="button"
                 className={currentView === "vendor-requests" ? "active" : ""}
-                onClick={() => setCurrentView("vendor-requests")}
+                onClick={() => navigateTo("vendor-requests")}
               >
                 Event Bookings
+              </button>
+
+              <button
+                type="button"
+                className={currentView === "profile" ? "active" : ""}
+                onClick={() => navigateTo("profile")}
+              >
+                Vendor Profile
               </button>
             </>
           )}
 
           {activeRole === "admin" && (
-            <button
-              type="button"
-              className={currentView === "admin-bookings" ? "active" : ""}
-              onClick={() => setCurrentView("admin-bookings")}
-            >
-              Platform Oversight
-            </button>
+            <>
+              <button
+                type="button"
+                className={currentView === "admin-bookings" ? "active" : ""}
+                onClick={() => navigateTo("admin-bookings")}
+              >
+                Platform Oversight
+              </button>
+              <button
+                type="button"
+                className={currentView === "profile" ? "active" : ""}
+                onClick={() => navigateTo("profile")}
+              >
+                Admin Profile
+              </button>
+            </>
           )}
         </nav>
 
@@ -383,18 +540,19 @@ function AppContent() {
         >
           {user && (
             <div
-              onClick={() => setIsProfileModalOpen(true)}
+              onClick={() => navigateTo("profile")}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "0.55rem",
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                background: currentView === "profile" ? "#e0e7ff" : "#f8fafc",
+                border: currentView === "profile" ? "1px solid #6366f1" : "1px solid #e2e8f0",
                 borderRadius: "10px",
                 padding: "0.3rem 0.65rem",
                 cursor: "pointer",
+                transition: "all 0.15s ease",
               }}
-              title="Click to view or edit profile"
+              title="Click to view My Profile"
             >
               <div
                 style={{
@@ -404,7 +562,7 @@ function AppContent() {
                   background:
                     activeRole === "vendor"
                       ? "linear-gradient(135deg, #7c3aed, #a855f7)"
-                      : "linear-gradient(135deg, #4f46e5, #6366f1)",
+                      : "linear-gradient(135deg, #ff5a36, #f4b740)",
                   color: "#ffffff",
                   display: "flex",
                   alignItems: "center",
@@ -437,7 +595,7 @@ function AppContent() {
                     textTransform: "capitalize",
                   }}
                 >
-                  {activeRole === "vendor" ? "🏢 Vendor" : "👤 Customer"}
+                  {activeRole === "vendor" ? "🏢 Vendor" : "👤 Profile"}
                 </div>
               </div>
             </div>
@@ -447,7 +605,7 @@ function AppContent() {
             <button
               className="primary-button"
               type="button"
-              onClick={() => setCurrentView("create-event")}
+              onClick={() => navigateTo("create-event")}
             >
               + Create Event
             </button>
@@ -455,7 +613,7 @@ function AppContent() {
 
           <button
             type="button"
-            onClick={logout}
+            onClick={handleLogout}
             style={{
               background: "transparent",
               border: "1px solid #e2e8f0",
@@ -474,13 +632,24 @@ function AppContent() {
       </header>
 
       <main className="content-area">
+        {/* USER PROFILE VIEW */}
+        {currentView === "profile" && (
+          <UserProfilePage
+            onNavigateToEvents={() => navigateTo("events")}
+            onNavigateToBookings={() => navigateTo("bookings")}
+            onNavigateToMarketplace={() => navigateTo("marketplace")}
+            onNavigateToCreateEvent={() => navigateTo("create-event")}
+            onNavigateToVendorPortal={() => navigateTo("vendor-portal")}
+            onLogout={handleLogout}
+          />
+        )}
+
         {/* CUSTOMER VIEWS */}
         {currentView === "events" && (
           <MyEventsPage
-            onCreateEvent={() => setCurrentView("create-event")}
+            onCreateEvent={() => navigateTo("create-event")}
             onSelectEvent={(id) => {
-              setSelectedEventId(id);
-              setCurrentView("event-dashboard");
+              navigateTo("event-dashboard", { eventId: id });
             }}
           />
         )}
@@ -488,32 +657,34 @@ function AppContent() {
         {currentView === "create-event" && (
           <CreateEventPage
             onEventCreated={(ev) => {
-              setSelectedEventId(ev.id);
-              setCurrentView("event-dashboard");
+              navigateTo("event-dashboard", { eventId: ev.id });
             }}
-            onNavigateBack={() => setCurrentView("events")}
+            onNavigateBack={() => navigateTo("events")}
           />
         )}
 
         {currentView === "event-dashboard" && (
           <EventDashboardPage
             eventId={selectedEventId}
-            onNavigateBack={() => setCurrentView("events")}
+            onNavigateBack={() => navigateTo("events")}
             onNavigateToBooking={(id) => {
-              setSelectedBookingId(id);
-              setCurrentView("booking-details");
+              navigateTo("booking-details", { bookingId: id });
             }}
-            onFindVendors={() => setCurrentView("marketplace")}
+            onFindVendors={(filters) => {
+              navigateTo("marketplace", filters || {});
+            }}
+            onSelectEvent={(id) => {
+              navigateTo("event-dashboard", { eventId: id });
+            }}
           />
         )}
 
         {currentView === "bookings" && (
           <MyBookingsPage
             onSelectBooking={(id) => {
-              setSelectedBookingId(id);
-              setCurrentView("booking-details");
+              navigateTo("booking-details", { bookingId: id });
             }}
-            onNavigateToEvents={() => setCurrentView("events")}
+            onNavigateToEvents={() => navigateTo("events")}
           />
         )}
 
@@ -521,13 +692,13 @@ function AppContent() {
           <BookingDetailsPage
             bookingId={selectedBookingId}
             onNavigateBack={() => {
-              if (activeRole === "customer") setCurrentView("bookings");
-              else if (activeRole === "vendor") setCurrentView("vendor-requests");
-              else setCurrentView("admin-bookings");
+              if (activeRole === "customer") navigateTo("bookings");
+              else if (activeRole === "vendor") navigateTo("vendor-requests");
+              else navigateTo("admin-bookings");
             }}
             onPaymentSuccess={(bkg) => {
               setConfirmedBooking(bkg);
-              setCurrentView("booking-confirmation");
+              navigateTo("booking-confirmation");
             }}
           />
         )}
@@ -535,23 +706,22 @@ function AppContent() {
         {currentView === "booking-confirmation" && (
           <BookingConfirmationPage
             booking={confirmedBooking}
-            onNavigateToBookings={() => setCurrentView("bookings")}
-            onNavigateToEvents={() => setCurrentView("events")}
+            onNavigateToBookings={() => navigateTo("bookings")}
+            onNavigateToEvents={() => navigateTo("events")}
           />
         )}
 
         {/* VENDOR OPERATING PORTAL & INQUIRIES */}
         {currentView === "vendor-portal" && (
           <VendorDashboard
-            onSwitchToMarketplace={() => setCurrentView("marketplace")}
+            onSwitchToMarketplace={() => navigateTo("marketplace")}
           />
         )}
 
         {currentView === "vendor-requests" && (
           <VendorRequestsPage
             onSelectRequest={(id) => {
-              setSelectedBookingId(id);
-              setCurrentView("vendor-request-details");
+              navigateTo("vendor-request-details", { bookingId: id });
             }}
           />
         )}
@@ -559,7 +729,7 @@ function AppContent() {
         {currentView === "vendor-request-details" && (
           <VendorRequestDetailsPage
             bookingId={selectedBookingId}
-            onNavigateBack={() => setCurrentView("vendor-requests")}
+            onNavigateBack={() => navigateTo("vendor-requests")}
           />
         )}
 
@@ -567,8 +737,7 @@ function AppContent() {
         {currentView === "admin-bookings" && (
           <AdminBookingsPage
             onSelectBooking={(id) => {
-              setSelectedBookingId(id);
-              setCurrentView("admin-booking-details");
+              navigateTo("admin-booking-details", { bookingId: id });
             }}
           />
         )}
@@ -576,7 +745,7 @@ function AppContent() {
         {currentView === "admin-booking-details" && (
           <AdminBookingDetailsPage
             bookingId={selectedBookingId}
-            onNavigateBack={() => setCurrentView("admin-bookings")}
+            onNavigateBack={() => navigateTo("admin-bookings")}
           />
         )}
 
@@ -584,7 +753,7 @@ function AppContent() {
         {currentView === "discover" && (
           <VendorDiscovery
             onSelectVendor={(v) => handleBookNow(v)}
-            onOpenVendorPortal={() => setCurrentView("vendor-portal")}
+            onOpenVendorPortal={() => navigateTo("vendor-portal")}
           />
         )}
       </main>
@@ -597,12 +766,12 @@ function AppContent() {
           vendorInfo={vendorToBook}
           onCreateNewEvent={() => {
             setIsBookModalOpen(false);
-            setCurrentView("create-event");
+            navigateTo("create-event");
           }}
           onSuccess={(bkg) => {
             setIsBookModalOpen(false);
             setSelectedBookingId(bkg.id);
-            setCurrentView("booking-details");
+            navigateTo("booking-details", { bookingId: bkg.id });
           }}
         />
       )}

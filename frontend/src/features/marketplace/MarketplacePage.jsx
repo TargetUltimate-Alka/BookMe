@@ -765,10 +765,24 @@ export function MarketplacePage({
   onNavigateToVendorPortal,
   onOpenProfile,
   onLogout,
+  initialCategory = "all",
+  initialLocation = "all",
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedLocation, setSelectedLocation] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || "all");
+  const [selectedLocation, setSelectedLocation] = useState(initialLocation || "all");
+
+  useEffect(() => {
+    if (initialCategory && initialCategory !== "all") {
+      setSelectedCategory(initialCategory);
+    }
+  }, [initialCategory]);
+
+  useEffect(() => {
+    if (initialLocation && initialLocation !== "all") {
+      setSelectedLocation(initialLocation);
+    }
+  }, [initialLocation]);
   const [vendors, setVendors] = useState(() => {
     return CURATED_DEFAULT_VENDORS.map((v) => {
       const d = getVendorDistanceInfo(v, "all");

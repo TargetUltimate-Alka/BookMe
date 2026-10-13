@@ -84,10 +84,10 @@ export function BookVendorModal({
       CATEGORY_ITEMS_CATALOG['General Service'];
 
     const initial = {};
-    // Select first 2-3 default items automatically
-    catalog.forEach((it, idx) => {
+    // Start with NO items preselected unless explicitly chosen by the customer
+    catalog.forEach((it) => {
       initial[it.id] = {
-        selected: idx < 3,
+        selected: false,
         name: it.name,
         quantity: it.defaultQty || 1,
         unitPrice: it.unitPrice,
@@ -146,7 +146,9 @@ export function BookVendorModal({
     }
   });
 
-  const totalCalculatedPrice = activeItemsList.reduce((sum, it) => sum + it.subtotal, 0);
+  const basePackagePrice = Number(vendorInfo.price) || 0;
+  const addOnsTotal = activeItemsList.reduce((sum, it) => sum + it.subtotal, 0);
+  const totalCalculatedPrice = basePackagePrice > 0 ? basePackagePrice + addOnsTotal : addOnsTotal;
 
   const toggleItemSelection = (itemId) => {
     setSelectedItems((prev) => ({
@@ -226,8 +228,8 @@ export function BookVendorModal({
       return;
     }
 
-    if (activeItemsList.length === 0) {
-      setErrorMsg('Please select at least one service item or quantity for your booking.');
+    if (totalCalculatedPrice <= 0 && activeItemsList.length === 0) {
+      setErrorMsg('Please select at least one service item or package.');
       return;
     }
 
@@ -239,6 +241,23 @@ export function BookVendorModal({
       const serviceId = vendorInfo.serviceId || (vendorId === 'vnd_202' ? 'svc_202' : vendorId === 'vnd_101' ? 'svc_101' : 'svc_789');
       const packageId = vendorInfo.packageId || (vendorId === 'vnd_202' ? 'pkg_301' : vendorId === 'vnd_101' ? 'pkg_201' : 'pkg_111');
 
+      const itemsPayload = activeItemsList.length > 0
+        ? activeItemsList
+        : [
+            {
+              id: packageId,
+              name: vendorInfo.packageName || 'Base Service Package',
+              quantity: 1,
+              unitPrice: basePackagePrice,
+              unit: 'package',
+              subtotal: basePackagePrice,
+            },
+          ];
+
+      const packageNamePayload = activeItemsList.length > 0
+        ? `${vendorInfo.packageName || 'Service Package'} + ${activeItemsList.length} item${activeItemsList.length > 1 ? 's' : ''}`
+        : (vendorInfo.packageName || 'Standard Service Package');
+
       const payload = {
         event_id: selectedEventId,
         vendor_id: vendorId,
@@ -246,8 +265,8 @@ export function BookVendorModal({
         package_id: packageId,
         category: vendorInfo.category || selectedEvent?.event_type || 'General Service',
         custom_price: totalCalculatedPrice,
-        custom_package_name: `${vendorInfo.packageName || 'Custom Service'} (${activeItemsList.length} items)`,
-        items: activeItemsList,
+        custom_package_name: packageNamePayload,
+        items: itemsPayload,
       };
 
       const result = await bookingsApi.createBooking(payload);
@@ -286,7 +305,7 @@ export function BookVendorModal({
               type="button"
               className="eb-btn eb-btn-primary"
               onClick={handleConfirm}
-              disabled={submitting || !selectedEventId || activeItemsList.length === 0}
+              disabled={submitting || !selectedEventId || totalCalculatedPrice <= 0}
             >
               {submitting ? 'Sending Request...' : 'Send Booking Request'}
             </button>
@@ -325,6 +344,39 @@ export function BookVendorModal({
             </strong>
           </div>
         </div>
+
+        {/* Base Package Snapshot if present */}
+        {basePackagePrice > 0 && (
+          <div
+            style={{
+              background: '#f0fdf4',
+              border: '1.5px solid #86efac',
+              borderRadius: '10px',
+              padding: '0.75rem 1rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                ✓ Selected Base Offering
+              </span>
+              <h5 style={{ margin: '0.15rem 0', fontSize: '0.95rem', fontWeight: 700, color: '#14532d' }}>
+                {vendorInfo.packageName || 'Standard Service Package'}
+              </h5>
+              <span style={{ fontSize: '0.78rem', color: '#15803d' }}>
+                Direct booking for {vendorInfo.vendorName}. Tick extra items below to add to your quote.
+              </span>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.72rem', color: '#166534', display: 'block' }}>Package Price</span>
+              <strong style={{ fontSize: '1.15rem', color: '#14532d' }}>
+                {formatCurrency(basePackagePrice)}
+              </strong>
+            </div>
+          </div>
+        )}
 
         {/* Target Event Selection */}
         <div className="eb-form-group" style={{ marginBottom: 0 }}>

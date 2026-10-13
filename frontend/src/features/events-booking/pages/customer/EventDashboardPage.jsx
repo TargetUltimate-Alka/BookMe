@@ -3,6 +3,8 @@ import { useEventDashboard } from '../../hooks/useEventDashboard.js';
 import { useBudget } from '../../hooks/useBudget.js';
 import { useChecklist } from '../../hooks/useChecklist.js';
 import { useEvent } from '../../hooks/useEvent.js';
+import { useEvents } from '../../hooks/useEvents.js';
+import { eventsApi } from '../../api/eventsApi.js';
 import { formatCurrency, formatDate, getDaysRemaining } from '../../utils/formatters.js';
 import { BookingStatusBadge } from '../../components/BookingStatusBadge.jsx';
 import { BudgetBar } from '../../components/BudgetBar.jsx';
@@ -20,6 +22,7 @@ export function EventDashboardPage({
   onNavigateBack,
   onNavigateToBooking,
   onFindVendors,
+  onSelectEvent,
 }) {
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -28,9 +31,11 @@ export function EventDashboardPage({
   const { budget, updating: budgetUpdating, updateBudget, refetch: refetchBudget } = useBudget(eventId);
   const { checklist, toggleItem, addItem, updateItem, deleteItem, actionLoading: checkLoading, refetch: refetchCheck } = useChecklist(eventId);
   const { event, updateEvent, cancelEvent, actionLoading: eventActionLoading, refetch: refetchEvent } = useEvent(eventId);
+  const { events: customerEvents, loading: eventsListLoading } = useEvents();
 
   // Modal States
   const [isEditEventOpen, setIsEditEventOpen] = useState(false);
+  const [targetEditEventId, setTargetEditEventId] = useState(eventId);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isEditTaskOpen, setIsEditTaskOpen] = useState(false);
@@ -91,7 +96,15 @@ export function EventDashboardPage({
   const progressPercent = dashboard?.progress?.percentage || 0;
   const bookingsList = dashboard?.bookings || [];
 
+  // Single source of truth for checklist counts: derive strictly from checklist array
+  const completedChecklistCount = checklist.filter((i) => i.done).length;
+  const totalChecklistCount = checklist.length;
+  const overdueChecklistCount = checklist.filter(
+    (i) => !i.done && i.due_date && new Date(i.due_date) < new Date()
+  ).length;
+
   const handleOpenEditEvent = () => {
+    setTargetEditEventId(currentEvent.id);
     setEditEventForm({
       name: currentEvent.name || '',
       event_date: currentEvent.event_date ? currentEvent.event_date.split('T')[0] : '',
@@ -102,18 +115,42 @@ export function EventDashboardPage({
     setIsEditEventOpen(true);
   };
 
+  const handleSwitchTargetEditEvent = (targetId) => {
+    setTargetEditEventId(targetId);
+    const targetEv = (customerEvents || []).find((e) => e.id === targetId);
+    if (targetEv) {
+      setEditEventForm({
+        name: targetEv.name || '',
+        event_date: targetEv.event_date ? targetEv.event_date.split('T')[0] : '',
+        budget: targetEv.budget || '',
+        guest_count: targetEv.guest_count || '',
+        city: targetEv.city || '',
+      });
+    }
+  };
+
   const handleSaveEditEvent = async () => {
     try {
-      await updateEvent({
+      const payload = {
         name: editEventForm.name,
         event_date: editEventForm.event_date,
         budget: Number(editEventForm.budget),
         guest_count: Number(editEventForm.guest_count),
         city: editEventForm.city,
-      });
+      };
+
+      if (targetEditEventId === currentEvent.id) {
+        await updateEvent(payload);
+        refetchDash();
+        refetchBudget();
+        refetchEvent();
+      } else {
+        await eventsApi.updateEvent(targetEditEventId, payload);
+        if (onSelectEvent) {
+          onSelectEvent(targetEditEventId);
+        }
+      }
       setIsEditEventOpen(false);
-      refetchDash();
-      refetchBudget();
     } catch (err) {
       alert(`Error updating event: ${err.message}`);
     }
@@ -250,7 +287,7 @@ export function EventDashboardPage({
           className={`eb-tab ${activeTab === 'checklist' ? 'eb-tab-active' : ''}`}
           onClick={() => setActiveTab('checklist')}
         >
-          📋 Checklist ({dashboard?.checklist?.completed || 0}/{dashboard?.checklist?.total || checklist.length})
+          📋 Checklist ({totalChecklistCount === 0 ? '0/0' : `${completedChecklistCount}/${totalChecklistCount}`})
         </button>
       </div>
 
@@ -297,10 +334,14 @@ export function EventDashboardPage({
                 Checklist Status
               </span>
               <h2 style={{ margin: '0.35rem 0 0 0', fontSize: '1.6rem', color: '#111827' }}>
-                {dashboard?.checklist?.completed || 0} / {dashboard?.checklist?.total || 0}
+                {completedChecklistCount} / {totalChecklistCount}
               </h2>
-              <span style={{ fontSize: '0.8rem', color: dashboard?.checklist?.overdue > 0 ? '#dc2626' : '#6b7280', display: 'block', marginTop: '0.25rem' }}>
-                {dashboard?.checklist?.overdue > 0 ? `⚠️ ${dashboard.checklist.overdue} overdue items` : 'All tasks on schedule'}
+              <span style={{ fontSize: '0.8rem', color: overdueChecklistCount > 0 ? '#dc2626' : '#6b7280', display: 'block', marginTop: '0.25rem' }}>
+                {overdueChecklistCount > 0
+                  ? `⚠️ ${overdueChecklistCount} overdue items`
+                  : totalChecklistCount === 0
+                  ? 'No tasks created yet'
+                  : 'All tasks on schedule'}
               </span>
             </div>
 
@@ -399,11 +440,20 @@ export function EventDashboardPage({
                     type="button"
                     className="eb-btn eb-btn-secondary eb-btn-sm"
                     onClick={() => {
-                      setSelectedVendorCategory(cat);
-                      setIsBookVendorOpen(true);
+                      if (onFindVendors) {
+                        onFindVendors({
+                          category: cat,
+                          city: currentEvent.city,
+                          guestCount: currentEvent.guest_count,
+                          eventId: currentEvent.id,
+                        });
+                      } else {
+                        setSelectedVendorCategory(cat);
+                        setIsBookVendorOpen(true);
+                      }
                     }}
                   >
-                    Find {cat} ➔
+                    Find {cat} in {currentEvent.city || 'all cities'} ➔
                   </button>
                 )
               )}
@@ -526,6 +576,28 @@ export function EventDashboardPage({
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {customerEvents && customerEvents.length > 1 && (
+            <div className="eb-form-group" style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label className="eb-label" style={{ color: '#4f46e5', fontWeight: 700 }}>
+                🔄 Select Customer Event to Edit
+              </label>
+              <select
+                className="eb-select"
+                value={targetEditEventId}
+                onChange={(e) => handleSwitchTargetEditEvent(e.target.value)}
+              >
+                {customerEvents.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} ({formatDate(ev.event_date)}) {ev.id === currentEvent.id ? '★ [Current Event]' : ''}
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                You have {customerEvents.length} events planned. You can choose any of your events to edit.
+              </span>
+            </div>
+          )}
+
           <div className="eb-form-group">
             <label className="eb-label">Event Name</label>
             <input
