@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { SUPPORTED_CATEGORIES } from "./MarketplaceCategories";
 
 export const INDIAN_LOCATIONS = [
   { id: "all", label: "All Cities (Pan-India)" },
@@ -11,6 +12,18 @@ export const INDIAN_LOCATIONS = [
   { id: "Hyderabad", label: "Hyderabad, Telangana" },
   { id: "Goa", label: "Goa (Destination)" },
   { id: "Udaipur", label: "Udaipur, Rajasthan" },
+];
+
+const POPULAR_SEARCHES = [
+  { text: "Royal Wedding Caterers", category: "Catering", icon: "🍲", highlight: "Live Chaat & Multi-Cuisine" },
+  { text: "Candid Wedding Photography & Drone", category: "Photography", icon: "📸", highlight: "4K Cinema & Reels" },
+  { text: "DJ with Cold Pyro & Fog Sparks", category: "DJ & Music", icon: "🎧", highlight: "Line Array & Sangeet Audio" },
+  { text: "Bridal HD Airbrush Makeup", category: "Makeup & Beauty", icon: "💄", highlight: "Celebrity Makeover & Hair Styling" },
+  { text: "Floral Mandap & Stage Decors", category: "Decoration", icon: "💐", highlight: "Royal Marigold & LED Tunnel" },
+  { text: "Rajasthani & Arabic Mehndi", category: "Mehndi Artists", icon: "✨", highlight: "Organic Herbal Bridal Henna" },
+  { text: "German Pagoda & Luxury AC Tents", category: "Tents & Event Setup", icon: "⛺", highlight: "Shamianas & Velvet Sofas" },
+  { text: "Vintage Wedding Cars for Baraat", category: "Transportation", icon: "🚗", highlight: "Chauffeur Driven Convertibles" },
+  { text: "Live Delhi Chaat & Food Counters", category: "Catering", icon: "🍲", highlight: "Pani Puri, Dahi Bhalla & Chefs" },
 ];
 
 export function MarketplaceHeader({
@@ -29,12 +42,60 @@ export function MarketplaceHeader({
   onOpenProfile,
   onLogout,
   onBrandClick,
+  vendors = [],
+  onSelectVendor,
+  onSelectCategory,
 }) {
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchWrapRef = useRef(null);
 
   const selectedLocObj =
     INDIAN_LOCATIONS.find((l) => l.id === selectedLocation) || INDIAN_LOCATIONS[0];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target)) {
+        setIsSearchFocused(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const q = (searchQuery || "").trim().toLowerCase();
+
+  // Top category chips matching query
+  const matchingCategories = SUPPORTED_CATEGORIES.filter((c) => {
+    if (c.id === "all") return false;
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q) ||
+      (c.tagline && c.tagline.toLowerCase().includes(q))
+    );
+  }).slice(0, 5);
+
+  // Suggested search queries
+  const matchingSuggestions = q
+    ? POPULAR_SEARCHES.filter(
+        (s) =>
+          s.text.toLowerCase().includes(q) ||
+          s.category.toLowerCase().includes(q) ||
+          s.highlight.toLowerCase().includes(q)
+      ).slice(0, 5)
+    : POPULAR_SEARCHES.slice(0, 5);
+
+  // Matching verified vendors
+  const matchingVendors = q && Array.isArray(vendors)
+    ? vendors
+        .filter((v) => {
+          const hay = `${v.businessName} ${v.category} ${v.description} ${v.location} ${(v.tags || []).join(" ")}`.toLowerCase();
+          return hay.includes(q);
+        })
+        .slice(0, 4)
+    : [];
 
   return (
     <header className="marketplace-header" role="banner">
@@ -124,29 +185,185 @@ export function MarketplaceHeader({
           )}
         </div>
 
-        {/* Search Bar (Flipkart style) */}
-        <div className="marketplace-search-wrap">
+        {/* Search Bar with Autocomplete & Smart Suggestions */}
+        <div className="marketplace-search-wrap" ref={searchWrapRef}>
           <div className="marketplace-search-input-box">
-            <span style={{ color: "#94a3b8", fontSize: "1rem", marginRight: 6 }}>🔍</span>
+            <span style={{ color: isSearchFocused ? "#4f46e5" : "#94a3b8", fontSize: "1rem", marginRight: 6, transition: "color 0.2s" }}>
+              🔍
+            </span>
             <input
               type="text"
               className="marketplace-search-input"
               placeholder="Search wedding photographers, royal caterers, DJs, floral decor..."
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => {
+                onSearchChange(e.target.value);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setIsSearchFocused(false);
+                } else if (e.key === "Enter") {
+                  setIsSearchFocused(false);
+                }
+              }}
               aria-label="Search vendor or service"
+              aria-expanded={isSearchFocused}
+              aria-haspopup="listbox"
             />
             {searchQuery && (
               <button
                 type="button"
                 className="marketplace-search-clear"
-                onClick={() => onSearchChange("")}
+                onClick={() => {
+                  onSearchChange("");
+                  setIsSearchFocused(true);
+                }}
                 title="Clear search"
               >
                 ✕
               </button>
             )}
           </div>
+
+          {/* Autocomplete Suggestions Dropdown */}
+          {isSearchFocused && (
+            <div className="marketplace-search-dropdown" role="listbox">
+              {/* Category Quick Chips */}
+              <div className="search-dropdown-section">
+                <div className="search-dropdown-section-title">
+                  <span>Categories</span>
+                  <span style={{ fontSize: "0.625rem", color: "#94a3b8" }}>Quick Filter</span>
+                </div>
+                <div className="search-category-chips">
+                  {matchingCategories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className="search-category-chip"
+                      onClick={() => {
+                        if (onSelectCategory) onSelectCategory(cat.id);
+                        onSearchChange(cat.id);
+                        setIsSearchFocused(false);
+                      }}
+                    >
+                      <span>{cat.icon}</span>
+                      <span>{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Matching / Trending Searches */}
+              <div className="search-dropdown-section">
+                <div className="search-dropdown-section-title">
+                  <span>{q ? "Suggested Searches" : "🔥 Trending Celebrations"}</span>
+                  <span style={{ fontSize: "0.625rem", color: "#6366f1" }}>Instant Match</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {matchingSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="search-suggestion-item"
+                      onClick={() => {
+                        onSearchChange(item.text);
+                        if (onSelectCategory) onSelectCategory(item.category);
+                        setIsSearchFocused(false);
+                      }}
+                    >
+                      <div className="search-suggestion-left">
+                        <span>{item.icon}</span>
+                        <span className="search-suggestion-text">{item.text}</span>
+                        <span className="search-suggestion-meta">• {item.highlight}</span>
+                      </div>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>↗</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Matching Verified Vendors (Direct Jump) */}
+              {matchingVendors.length > 0 && (
+                <div className="search-dropdown-section">
+                  <div className="search-dropdown-section-title">
+                    <span>🛡️ Verified Professionals</span>
+                    <span style={{ fontSize: "0.625rem", color: "#10b981" }}>Direct View</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {matchingVendors.map((vendor) => (
+                      <div
+                        key={vendor.id}
+                        className="search-vendor-item"
+                        onClick={() => {
+                          if (onSelectVendor) {
+                            onSelectVendor(vendor);
+                          } else {
+                            onSearchChange(vendor.businessName);
+                          }
+                          setIsSearchFocused(false);
+                        }}
+                      >
+                        {vendor.coverImage ? (
+                          <img
+                            src={vendor.coverImage}
+                            alt={vendor.businessName}
+                            className="search-vendor-avatar"
+                          />
+                        ) : (
+                          <div className="search-vendor-avatar">💼</div>
+                        )}
+                        <div className="search-vendor-info">
+                          <div className="search-vendor-name-row">
+                            <span className="search-vendor-name">{vendor.businessName}</span>
+                            <span className="search-vendor-verified">✓ Verified</span>
+                          </div>
+                          <div className="search-vendor-meta-row">
+                            <span>⭐ {vendor.rating || 4.9}</span>
+                            <span>•</span>
+                            <span>{vendor.category}</span>
+                            <span>•</span>
+                            <span>📍 {vendor.location}</span>
+                          </div>
+                        </div>
+                        <div className="search-vendor-price">
+                          From ₹{(vendor.basePrice || 25000).toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* City Quick Filter Prompt */}
+              {q && selectedLocation !== "all" && (
+                <div className="search-dropdown-section" style={{ background: "#f8fafc" }}>
+                  <div
+                    className="search-suggestion-item"
+                    style={{ padding: "6px 8px" }}
+                    onClick={() => {
+                      onSearchChange(`${q} in ${selectedLocObj.id}`);
+                      setIsSearchFocused(false);
+                    }}
+                  >
+                    <div className="search-suggestion-left">
+                      <span>📍</span>
+                      <span style={{ fontWeight: 600, color: "#4f46e5" }}>
+                        Search "{searchQuery}" specifically in {selectedLocObj.id}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.75rem", color: "#4f46e5" }}>Filter →</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Tip */}
+              <div className="search-dropdown-footer">
+                <span>💡 Tip: Try "DJ in Ahmedabad" or "Chaat"</span>
+                <span>Press ↵ Enter to search</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Actions */}

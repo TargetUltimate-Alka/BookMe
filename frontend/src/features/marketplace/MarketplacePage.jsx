@@ -315,6 +315,9 @@ export function MarketplacePage({
           setSelectedLocation("all");
           setSearchQuery("");
         }}
+        vendors={vendors}
+        onSelectVendor={(v) => setSelectedVendorForModal(v)}
+        onSelectCategory={(catId) => setSelectedCategory(catId)}
       />
 
       {/* Hero Section */}
