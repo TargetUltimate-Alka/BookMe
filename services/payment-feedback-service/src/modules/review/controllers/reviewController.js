@@ -44,6 +44,8 @@ class ReviewController {
         customerId,
         rating: numRating,
         comment: comment || '',
+        vendor_reply: null,
+        vendor_replied_at: null,
         created_at: new Date().toISOString(),
       };
 
@@ -67,7 +69,51 @@ class ReviewController {
         vendorId: saved.vendor_id || saved.vendorId,
         rating: Number(saved.rating),
         comment: saved.comment,
+        vendorReply: saved.vendor_reply || null,
         createdAt: saved.created_at,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // FR-REV-03: Vendors may post a single public reply per review
+  async replyToReview(req, res, next) {
+    try {
+      const { reviewId } = req.params;
+      const { reply } = req.body;
+
+      if (!reply || !String(reply).trim()) {
+        const err = new Error('reply text is required');
+        err.status = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
+      }
+
+      const existing = await reviewRepository.findById(reviewId);
+      if (!existing) {
+        const err = new Error(`Review ${reviewId} not found`);
+        err.status = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+
+      if (existing.vendor_reply) {
+        const err = new Error('A vendor reply has already been posted for this review (FR-REV-03 allows a single public reply per review)');
+        err.status = 409;
+        err.code = 'ALREADY_REPLIED';
+        throw err;
+      }
+
+      const updated = await reviewRepository.saveVendorReply(reviewId, String(reply).trim());
+      res.status(200).json({
+        id: updated.id,
+        vendorId: updated.vendor_id || updated.vendorId,
+        rating: Number(updated.rating),
+        comment: updated.comment,
+        vendorReply: updated.vendor_reply,
+        vendorRepliedAt: updated.vendor_replied_at,
+        createdAt: updated.created_at,
       });
     } catch (err) {
       next(err);
@@ -89,6 +135,8 @@ class ReviewController {
         id: r.id,
         rating: Number(r.rating),
         comment: r.comment,
+        vendorReply: r.vendor_reply || null,
+        vendorRepliedAt: r.vendor_replied_at || null,
         bookingId: r.booking_id || r.bookingId,
         createdAt: r.created_at,
       }));
