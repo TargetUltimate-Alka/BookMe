@@ -25,6 +25,17 @@ const notifyRouter = express.Router();
 // 1. Event Routes (/events)
 // ==========================================
 
+// OPTIONS preflight & discovery with Allow header (A5)
+eventRouter.options('/', (req, res) => {
+  res.setHeader('Allow', 'GET, POST, OPTIONS');
+  res.status(204).end();
+});
+
+eventRouter.options('/:id', (req, res) => {
+  res.setHeader('Allow', 'GET, PATCH, PUT, DELETE, OPTIONS');
+  res.status(204).end();
+});
+
 // Create Event (Customer)
 eventRouter.post(
   '/',

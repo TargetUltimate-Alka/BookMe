@@ -76,3 +76,21 @@ services:
       POSTGRES_PASSWORD: password
     ports:
       - "5436:5432"
+
+  admin-service:
+    build: ./services/admin-service
+    ports:
+      - "3005:3000"
+    env_file: ./services/admin-service/.env.example
+    depends_on:
+      - admin-db
+
+  admin-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: admin_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5437:5432"
+

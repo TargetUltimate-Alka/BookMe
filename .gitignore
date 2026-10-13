@@ -30,3 +30,7 @@ Thumbs.db
 
 # Runtime data persistence
 services/auth-service/data/
+
+# Course Assignments (kept strictly local)
+Assignemnts_BookMe/
+Assignments_BookMe/

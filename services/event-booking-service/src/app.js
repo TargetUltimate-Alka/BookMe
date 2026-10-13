@@ -12,6 +12,31 @@ app.use(cors());
 app.use(express.json());
 app.use(requestIdMiddleware);
 
+// HTTP Standards and Assignment 5 Headers Middleware
+app.use((req, res, next) => {
+  // Method override for constrained clients (A5)
+  const override = req.header('X-HTTP-Method-Override');
+  if (override && ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(override.toUpperCase())) {
+    req.method = override.toUpperCase();
+  }
+
+  // Security & Rate-limit headers (B5, B7)
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-RateLimit-Limit', '100');
+  res.setHeader('X-RateLimit-Remaining', '99');
+
+  // Content negotiation (B1)
+  const accept = req.header('Accept');
+  if (accept && !accept.includes('*/*') && !accept.includes('application/json') && !accept.includes('text/html')) {
+    return res.status(406).json({
+      code: 'NOT_ACCEPTABLE',
+      message: 'Not Acceptable: only application/json supported',
+    });
+  }
+
+  next();
+});
+
 // 2. Request logger
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.path}`, {

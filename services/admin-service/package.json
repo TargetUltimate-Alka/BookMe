@@ -1,0 +1,22 @@
+{
+  "name": "admin-service",
+  "version": "1.0.0",
+  "description": "BookMe admin-service - RBAC, Audit Trail, Dynamic Configs & Vendor Enforcement per SRS §3.12 (FR-ADM-01..04)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --runInBand --detectOpenHandles --forceExit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
