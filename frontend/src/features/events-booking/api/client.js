@@ -328,11 +328,24 @@ export async function request(endpoint, options = {}) {
   const auth = getAuthContext();
   const url = `${BASE_URL.replace(/\/$/, '')}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
+  let storedToken = null;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      storedToken = sessionStorage.getItem('bookme_access_token');
+    }
+    if (!storedToken && typeof localStorage !== 'undefined') {
+      storedToken = localStorage.getItem('bookme_auth_token');
+    }
+  } catch {
+    // Ignore
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'X-User-Id': auth.userId,
     'X-User-Role': auth.userRole,
     'X-Request-Id': `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {}),
     ...(options.headers || {}),
   };
 

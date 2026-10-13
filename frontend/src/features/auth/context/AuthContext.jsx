@@ -99,8 +99,12 @@ export function AuthProvider({ children }) {
     setError(null);
     try {
       const res = await authApi.login({ email, password });
-      saveSession(res.accessToken, res.refreshToken, res.user);
-      return res.user;
+      const userData = {
+        ...res.user,
+        email: email || res.user?.email || null,
+      };
+      saveSession(res.accessToken, res.refreshToken, userData);
+      return userData;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -118,8 +122,12 @@ export function AuthProvider({ children }) {
       await authApi.register({ name, email, password, role });
       // 2. Automatically log in to issue tokens
       const loginRes = await authApi.login({ email, password });
-      saveSession(loginRes.accessToken, loginRes.refreshToken, loginRes.user);
-      return loginRes.user;
+      const userData = {
+        ...loginRes.user,
+        email: email || loginRes.user?.email || null,
+      };
+      saveSession(loginRes.accessToken, loginRes.refreshToken, userData);
+      return userData;
     } catch (err) {
       setError(err.message);
       throw err;

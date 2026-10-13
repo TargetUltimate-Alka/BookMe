@@ -27,3 +27,6 @@ logs
 # OS files
 .DS_Store
 Thumbs.db
+
+# Runtime data persistence
+services/auth-service/data/

@@ -49,15 +49,21 @@ class AuthController {
     try {
       const { phone, verificationToken, name, email, password, role, acceptLiabilityTerms } = req.body || {};
 
+      const hasPhone = Boolean(phone && typeof phone === 'string' && phone.trim());
+      const hasEmail = Boolean(email && typeof email === 'string' && EMAIL_REGEX.test(email.trim()));
+
       // 1. Validation
       const errors = [];
 
-      if (!phone || typeof phone !== 'string' || !PHONE_REGEX.test(phone.trim())) {
+      if (hasPhone) {
+        if (!PHONE_REGEX.test(phone.trim())) {
+          errors.push({ field: 'phone', issue: 'Valid phone number required (+91 followed by 10 digits)' });
+        }
+        if (!verificationToken || typeof verificationToken !== 'string') {
+          errors.push({ field: 'verificationToken', issue: 'Valid verificationToken required from OTP verification' });
+        }
+      } else if (!hasEmail) {
         errors.push({ field: 'phone', issue: 'Valid phone number required (+91 followed by 10 digits)' });
-      }
-
-      if (!verificationToken || typeof verificationToken !== 'string') {
-        errors.push({ field: 'verificationToken', issue: 'Valid verificationToken required from OTP verification' });
       }
 
       if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -68,11 +74,12 @@ class AuthController {
         errors.push({ field: 'email', issue: 'A valid email address is required' });
       }
 
-      if (!password || typeof password !== 'string' || password.length < 8) {
-        errors.push({ field: 'password', issue: 'Password must be at least 8 characters long' });
+      if (!password || typeof password !== 'string' || password.length < 6) {
+        errors.push({ field: 'password', issue: 'Password must be at least 6 characters long' });
       }
 
-      if (!role || !VALID_ROLES.includes(role)) {
+      const assignedRole = role || 'customer';
+      if (!VALID_ROLES.includes(assignedRole)) {
         errors.push({ field: 'role', issue: `Role must be one of: ${VALID_ROLES.join(', ')}` });
       }
 
@@ -84,7 +91,13 @@ class AuthController {
         return next(err);
       }
 
-      const cleanPhone = phone.trim();
+      let cleanPhone = hasPhone ? phone.trim() : null;
+      if (!cleanPhone && hasEmail) {
+        // Derive unique phone for internal schema requirements when registering with email
+        const hashNum = crypto.createHash('md5').update(email.trim().toLowerCase()).digest('hex').replace(/\D/g, '').slice(0, 9).padEnd(9, '0');
+        cleanPhone = `+919${hashNum}`;
+      }
+
       const phoneHash = hashPhone(cleanPhone);
 
       // 2. Check duplicate phone or email first (returns 409 CONFLICT)
@@ -109,21 +122,23 @@ class AuthController {
         }
       }
 
-      // 3. Validate and consume verification token
-      const tokenRecord = await otpRepository.findVerificationToken(verificationToken);
-      if (
-        !tokenRecord ||
-        tokenRecord.consumed ||
-        tokenRecord.phone_hash !== phoneHash ||
-        new Date(tokenRecord.expires_at) < new Date()
-      ) {
-        const err = new Error('Invalid, expired, or already used verification token');
-        err.code = 'VALIDATION_ERROR';
-        err.status = 400;
-        err.details = [{ field: 'verificationToken', issue: 'Token is invalid or expired' }];
-        return next(err);
+      // 3. Validate and consume verification token (only when registering with phone)
+      if (hasPhone) {
+        const tokenRecord = await otpRepository.findVerificationToken(verificationToken);
+        if (
+          !tokenRecord ||
+          tokenRecord.consumed ||
+          tokenRecord.phone_hash !== phoneHash ||
+          new Date(tokenRecord.expires_at) < new Date()
+        ) {
+          const err = new Error('Invalid, expired, or already used verification token');
+          err.code = 'VALIDATION_ERROR';
+          err.status = 400;
+          err.details = [{ field: 'verificationToken', issue: 'Token is invalid or expired' }];
+          return next(err);
+        }
+        await otpRepository.consumeVerificationToken(verificationToken);
       }
-      await otpRepository.consumeVerificationToken(verificationToken);
 
       // 4. Hash password & Encrypt phone at rest
       const passwordHash = await bcrypt.hash(password, 10);
@@ -138,7 +153,7 @@ class AuthController {
         phoneHash,
         email: normalizedEmail,
         passwordHash,
-        role,
+        role: assignedRole,
         status: 'ACTIVE',
       });
 
@@ -188,19 +203,31 @@ class AuthController {
   // 4. POST /v1/auth/login (operationId: loginUser)
   async login(req, res, next) {
     try {
-      const { phone, password } = req.body || {};
+      const { phone, email, identifier, username, password } = req.body || {};
+      const loginIdentifier = phone || email || identifier || username;
 
-      if (!phone || !password || typeof phone !== 'string' || typeof password !== 'string') {
-        const err = new Error('Phone and password are required');
+      if (!loginIdentifier || !password || typeof loginIdentifier !== 'string' || typeof password !== 'string') {
+        const err = new Error('Phone or email and password are required');
         err.code = 'VALIDATION_ERROR';
         err.status = 400;
         err.details = [];
         return next(err);
       }
 
-      const cleanPhone = phone.trim();
-      const phoneHash = hashPhone(cleanPhone);
-      const user = await userRepository.findByPhoneHash(phoneHash);
+      const cleanIdentifier = loginIdentifier.trim();
+      let user = null;
+
+      if (cleanIdentifier.includes('@')) {
+        user = await userRepository.findByEmail(cleanIdentifier);
+      } else {
+        const cleanPhone = cleanIdentifier.startsWith('+91')
+          ? cleanIdentifier
+          : cleanIdentifier.length === 10
+          ? `+91${cleanIdentifier}`
+          : cleanIdentifier;
+        const phoneHash = hashPhone(cleanPhone);
+        user = await userRepository.findByPhoneHash(phoneHash);
+      }
 
       // Generic authentication error to prevent user enumeration
       const genericAuthError = () => {
@@ -216,13 +243,19 @@ class AuthController {
       }
 
       // Check account lockout
-      if (user.locked_until && new Date(user.locked_until) > new Date()) {
-        const remainingMinutes = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
-        const err = new Error(`Account locked after 5 failed attempts. Please try again after ${remainingMinutes} minutes.`);
-        err.code = 'UNAUTHORIZED';
-        err.status = 401;
-        err.details = [];
-        return next(err);
+      if (user.locked_until) {
+        if (new Date(user.locked_until) > new Date()) {
+          const remainingMinutes = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+          const err = new Error(`Account locked after 5 failed attempts. Please try again after ${remainingMinutes} minutes.`);
+          err.code = 'UNAUTHORIZED';
+          err.status = 401;
+          err.details = [];
+          return next(err);
+        } else if (user.status === 'LOCKED') {
+          // Lockout period has elapsed: unlock
+          user.status = 'ACTIVE';
+          await userRepository.resetFailedAttempts(user.id);
+        }
       }
 
       const isMatch = await bcrypt.compare(password, user.password_hash);

@@ -41,8 +41,68 @@ class InMemoryStore {
           this.agreementAcceptances = parsed.agreementAcceptances;
         }
       }
+
+      if (this.users.size === 0) {
+        this.seedDemoUsers();
+      }
     } catch (err) {
       console.warn('[auth-service] Notice loading persisted database file:', err.message);
+      if (this.users.size === 0) {
+        this.seedDemoUsers();
+      }
+    }
+  }
+
+  seedDemoUsers() {
+    try {
+      const bcrypt = require('bcryptjs');
+      const { hashPhone, encrypt } = require('../services/encryptionService');
+      const passwordHash = bcrypt.hashSync('password123', 10);
+
+      const demoUsers = [
+        {
+          id: 'usr_customer_demo',
+          name: 'Aarav Sharma',
+          phone: '+919876543210',
+          email: 'customer@bookme.com',
+          role: 'customer',
+        },
+        {
+          id: 'vnd_sunset_caterers',
+          name: 'Sunset Catering Partner',
+          phone: '+919876543211',
+          email: 'vendor@bookme.com',
+          role: 'vendor',
+        },
+        {
+          id: 'usr_admin_demo',
+          name: 'Super Admin',
+          phone: '+919876543212',
+          email: 'admin@bookme.com',
+          role: 'superAdmin',
+        },
+      ];
+
+      for (const u of demoUsers) {
+        this.users.set(u.id, {
+          id: u.id,
+          name: u.name,
+          phone_encrypted: encrypt(u.phone),
+          phone_hash: hashPhone(u.phone),
+          email: u.email,
+          password_hash: passwordHash,
+          role: u.role,
+          status: 'ACTIVE',
+          failed_attempts: 0,
+          locked_until: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      this.saveToDisk().catch(() => {});
+    } catch (e) {
+      console.warn('[auth-service] Demo user seed notice:', e.message);
     }
   }
 
