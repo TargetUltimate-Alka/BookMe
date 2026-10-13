@@ -225,30 +225,8 @@ export function MarketplacePage({
               };
             });
 
-            // Filter locally if search query is active
-            let list = merged;
-            if (searchQuery.trim()) {
-              const q = searchQuery.toLowerCase();
-              list = list.filter(
-                (v) =>
-                  v.businessName.toLowerCase().includes(q) ||
-                  (v.category && v.category.toLowerCase().includes(q)) ||
-                  (v.description && v.description.toLowerCase().includes(q))
-              );
-            }
-            if (selectedCategory !== "all") {
-              list = list.filter(
-                (v) => v.category && v.category.toLowerCase().includes(selectedCategory.toLowerCase())
-              );
-            }
-            if (selectedLocation !== "all") {
-              list = list.filter(
-                (v) => v.location && v.location.toLowerCase().includes(selectedLocation.toLowerCase())
-              );
-            }
-
-            setVendors(list);
-            setTotalMatches(list.length);
+            setVendors(merged);
+            setTotalMatches(res.totalItems !== undefined ? res.totalItems : merged.length);
             setIsLoading(false);
             return;
           }
@@ -261,21 +239,26 @@ export function MarketplacePage({
         let list = CURATED_DEFAULT_VENDORS;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          list = list.filter(
-            (v) =>
-              v.businessName.toLowerCase().includes(q) ||
-              v.category.toLowerCase().includes(q) ||
-              v.description.toLowerCase().includes(q)
-          );
+          const tokens = q.split(/[\s,+/]+/).filter(Boolean);
+          list = list.filter((v) => {
+            const h = `${v.businessName} ${v.category} ${v.description} ${v.location} ${(v.tags || []).join(' ')}`.toLowerCase();
+            return h.includes(q) || tokens.every((t) => h.includes(t));
+          });
         }
         if (selectedCategory !== "all") {
-          list = list.filter(
-            (v) => v.category.toLowerCase().includes(selectedCategory.toLowerCase())
-          );
+          const catLower = selectedCategory.toLowerCase();
+          list = list.filter((v) => {
+            const vc = (v.category || "").toLowerCase();
+            return (
+              vc.includes(catLower) ||
+              catLower.includes(vc) ||
+              (v.tags || []).some((t) => t.toLowerCase().includes(catLower) || catLower.includes(t.toLowerCase()))
+            );
+          });
         }
         if (selectedLocation !== "all") {
-          list = list.filter(
-            (v) => v.location.toLowerCase().includes(selectedLocation.toLowerCase())
+          list = list.filter((v) =>
+            v.location && v.location.toLowerCase().includes(selectedLocation.toLowerCase())
           );
         }
 

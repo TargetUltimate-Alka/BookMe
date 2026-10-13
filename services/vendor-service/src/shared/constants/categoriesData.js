@@ -164,24 +164,162 @@ const SERVICE_CATEGORIES = [
   { id: 'cat_60_fireworks_special_effects', name: 'Fireworks/Special Effects', slug: 'fireworks-special-effects', parentId: 'cat_parent_planning', isRegulated: true, complianceNote: 'Requires PESO explosives license, local Fire Brigade NOC, and cold-pyro only for indoor venues.', defaultHsnSac: '999614', defaultGstRatePercent: 18 },
 ];
 
+const CATEGORY_ALIASES = {
+  // Music & DJ
+  'dj': ['cat_25_dj', 'cat_parent_music'],
+  'dj & music': ['cat_25_dj', 'cat_parent_music'],
+  'music': ['cat_parent_music', 'cat_25_dj'],
+  'music and entertainment': ['cat_parent_music'],
+  'live band': ['cat_26_live_band', 'cat_parent_music'],
+  'singer': ['cat_27_singer', 'cat_parent_music'],
+  'dhol': ['cat_29_dhol_group', 'cat_parent_music'],
+  'dhol group': ['cat_29_dhol_group', 'cat_parent_music'],
+  'sound system': ['cat_32_sound_system_rental', 'cat_parent_music'],
+
+  // Food & Catering
+  'catering': ['cat_parent_food', 'cat_09_caterer'],
+  'caterer': ['cat_09_caterer', 'cat_parent_food'],
+  'catering & cooks': ['cat_parent_food', 'cat_09_caterer'],
+  'food': ['cat_parent_food', 'cat_09_caterer'],
+  'food and hospitality': ['cat_parent_food'],
+  'veg caterer': ['cat_10_vegetarian_caterer', 'cat_parent_food'],
+  'vegetarian caterer': ['cat_10_vegetarian_caterer', 'cat_parent_food'],
+  'non veg caterer': ['cat_11_non_vegetarian_caterer', 'cat_parent_food'],
+  'chaat': ['cat_12_live_food_counter', 'cat_parent_food'],
+  'live chaat': ['cat_12_live_food_counter', 'cat_parent_food'],
+  'live food counter': ['cat_12_live_food_counter', 'cat_parent_food'],
+  'sweets': ['cat_13_sweets_and_desserts', 'cat_parent_food'],
+  'desserts': ['cat_13_sweets_and_desserts', 'cat_parent_food'],
+  'cake': ['cat_14_wedding_cake_maker', 'cat_parent_food'],
+  'wedding cake': ['cat_14_wedding_cake_maker', 'cat_parent_food'],
+  'mocktails': ['cat_15_beverage_service', 'cat_parent_food'],
+  'beverage': ['cat_15_beverage_service', 'cat_parent_food'],
+
+  // Photography & Media
+  'photography': ['cat_parent_photography', 'cat_01_wedding_photographer'],
+  'photography & videography': ['cat_parent_photography', 'cat_01_wedding_photographer'],
+  'photographer': ['cat_01_wedding_photographer', 'cat_parent_photography'],
+  'wedding photographer': ['cat_01_wedding_photographer', 'cat_parent_photography'],
+  'candid photography': ['cat_02_candid_photographer', 'cat_parent_photography'],
+  'candid photographer': ['cat_02_candid_photographer', 'cat_parent_photography'],
+  'pre wedding': ['cat_03_pre_wedding_photographer', 'cat_parent_photography'],
+  'videographer': ['cat_04_videographer', 'cat_parent_photography'],
+  'cinematography': ['cat_05_cinematic_filmmaker', 'cat_parent_photography'],
+  'drone': ['cat_06_drone_videography', 'cat_parent_photography'],
+  'drone videography': ['cat_06_drone_videography', 'cat_parent_photography'],
+  'photo booth': ['cat_07_photo_booth', 'cat_parent_photography'],
+
+  // Decoration
+  'decoration': ['cat_parent_decoration', 'cat_17_wedding_decorator'],
+  'decor': ['cat_parent_decoration', 'cat_17_wedding_decorator'],
+  'decoration & balloons': ['cat_parent_decoration', 'cat_17_wedding_decorator'],
+  'decoration and setup': ['cat_parent_decoration'],
+  'wedding decorator': ['cat_17_wedding_decorator', 'cat_parent_decoration'],
+  'mandap': ['cat_18_mandap_decorator', 'cat_parent_decoration'],
+  'mandap decorator': ['cat_18_mandap_decorator', 'cat_parent_decoration'],
+  'stage': ['cat_19_stage_decorator', 'cat_parent_decoration'],
+  'stage decorator': ['cat_19_stage_decorator', 'cat_parent_decoration'],
+  'balloons': ['cat_20_balloon_decorator', 'cat_parent_decoration'],
+  'balloon decorator': ['cat_20_balloon_decorator', 'cat_parent_decoration'],
+  'floral': ['cat_21_floral_decorator', 'cat_parent_decoration'],
+  'flowers': ['cat_21_floral_decorator', 'cat_parent_decoration'],
+
+  // Beauty & Styling
+  'beauty': ['cat_parent_beauty', 'cat_33_bridal_makeup_artist'],
+  'beauty and styling': ['cat_parent_beauty'],
+  'makeup': ['cat_33_bridal_makeup_artist', 'cat_parent_beauty'],
+  'makeup & beauty': ['cat_parent_beauty', 'cat_33_bridal_makeup_artist'],
+  'bridal makeup': ['cat_33_bridal_makeup_artist', 'cat_parent_beauty'],
+  'bridal makeup artist': ['cat_33_bridal_makeup_artist', 'cat_parent_beauty'],
+  'party makeup': ['cat_34_party_makeup_artist', 'cat_parent_beauty'],
+  'hairstylist': ['cat_35_hairstylist', 'cat_parent_beauty'],
+  'hair': ['cat_35_hairstylist', 'cat_parent_beauty'],
+  'mehndi': ['cat_36_mehndi_artist', 'cat_parent_beauty'],
+  'mehndi artist': ['cat_36_mehndi_artist', 'cat_parent_beauty'],
+  'mehndi artists': ['cat_36_mehndi_artist', 'cat_parent_beauty'],
+  'mehendi': ['cat_36_mehndi_artist', 'cat_parent_beauty'],
+  'henna': ['cat_36_mehndi_artist', 'cat_parent_beauty'],
+
+  // Infrastructure & Tents & Lighting
+  'infrastructure': ['cat_parent_infrastructure', 'cat_42_tent_provider'],
+  'lighting': ['cat_39_lighting_vendor', 'cat_parent_infrastructure'],
+  'lighting & effects': ['cat_39_lighting_vendor', 'cat_parent_infrastructure'],
+  'lights': ['cat_39_lighting_vendor', 'cat_parent_infrastructure'],
+  'led wall': ['cat_40_led_wall_rental', 'cat_parent_infrastructure'],
+  'generator': ['cat_41_generator_rental', 'cat_parent_infrastructure'],
+  'tent': ['cat_42_tent_provider', 'cat_parent_infrastructure'],
+  'tents': ['cat_42_tent_provider', 'cat_parent_infrastructure'],
+  'tent provider': ['cat_42_tent_provider', 'cat_parent_infrastructure'],
+  'tents & event setup': ['cat_parent_infrastructure', 'cat_42_tent_provider'],
+  'sound and light': ['cat_44_sound_and_light_production', 'cat_parent_infrastructure'],
+
+  // Transport
+  'transport': ['cat_parent_transport', 'cat_47_wedding_car_rental'],
+  'transportation': ['cat_parent_transport', 'cat_47_wedding_car_rental'],
+  'transport and logistics': ['cat_parent_transport'],
+  'transportation & luxury cars': ['cat_parent_transport', 'cat_48_luxury_car_rental'],
+  'wedding cars': ['cat_47_wedding_car_rental', 'cat_parent_transport'],
+  'wedding car': ['cat_47_wedding_car_rental', 'cat_parent_transport'],
+  'luxury cars': ['cat_48_luxury_car_rental', 'cat_parent_transport'],
+  'vintage cars': ['cat_47_wedding_car_rental', 'cat_parent_transport'],
+  'bus': ['cat_49_guest_bus', 'cat_parent_transport'],
+  'guest bus': ['cat_49_guest_bus', 'cat_parent_transport'],
+  'tempo traveller': ['cat_50_tempo_traveller', 'cat_parent_transport'],
+  'valet': ['cat_52_valet_parking', 'cat_parent_transport'],
+
+  // Planning & Special Services
+  'planning': ['cat_parent_planning', 'cat_53_wedding_planner'],
+  'planning and special services': ['cat_parent_planning'],
+  'wedding planner': ['cat_53_wedding_planner', 'cat_parent_planning'],
+  'planner': ['cat_53_wedding_planner', 'cat_parent_planning'],
+  'event coordinator': ['cat_54_event_coordinator', 'cat_parent_planning'],
+  'invitations': ['cat_55_invitation_designer_printer', 'cat_parent_planning'],
+  'priest': ['cat_57_priest_ceremonial_services', 'cat_parent_planning'],
+  'pandit': ['cat_57_priest_ceremonial_services', 'cat_parent_planning'],
+  'security': ['cat_58_security_staff', 'cat_parent_planning'],
+  'fireworks': ['cat_60_fireworks_special_effects', 'cat_parent_planning'],
+  'pyro': ['cat_60_fireworks_special_effects', 'cat_parent_planning'],
+};
+
 const ALL_CATEGORIES = [...PARENT_CATEGORIES, ...SERVICE_CATEGORIES];
 
 function findCategoryByIdOrSlug(identifier) {
   if (!identifier) return null;
   const norm = String(identifier).trim().toLowerCase();
-  return (
-    ALL_CATEGORIES.find(
-      (c) =>
-        c.id.toLowerCase() === norm ||
-        c.slug.toLowerCase() === norm ||
-        c.name.toLowerCase() === norm
-    ) || null
+
+  // 1. Direct exact match on ID, slug, or name
+  const direct = ALL_CATEGORIES.find(
+    (c) =>
+      c.id.toLowerCase() === norm ||
+      c.slug.toLowerCase() === norm ||
+      c.name.toLowerCase() === norm
   );
+  if (direct) return direct;
+
+  // 2. Check alias map
+  if (CATEGORY_ALIASES[norm] && CATEGORY_ALIASES[norm].length > 0) {
+    const targetId = CATEGORY_ALIASES[norm][0];
+    const aliased = ALL_CATEGORIES.find((c) => c.id === targetId);
+    if (aliased) return aliased;
+  }
+
+  // 3. Substring match on slug or name
+  const partial = ALL_CATEGORIES.find(
+    (c) =>
+      c.slug.toLowerCase().includes(norm) ||
+      norm.includes(c.slug.toLowerCase()) ||
+      c.name.toLowerCase().includes(norm) ||
+      norm.includes(c.name.toLowerCase())
+  );
+  if (partial) return partial;
+
+  return null;
 }
 
 module.exports = {
   PARENT_CATEGORIES,
   SERVICE_CATEGORIES,
   ALL_CATEGORIES,
+  CATEGORY_ALIASES,
   findCategoryByIdOrSlug,
 };

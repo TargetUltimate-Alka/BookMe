@@ -24,6 +24,7 @@ const {
   enqueueOutboxEvent,
 } = require('./configAuditRepository');
 const categoriesRepo = require('./categoriesRepository');
+const { CATEGORY_ALIASES } = require('../../../shared/constants/categoriesData');
 const packagesRepo = require('./packagesRepository');
 const mediaRepo = require('./mediaRepository');
 const availabilityRepo = require('../../availability/repository/availabilityRepository');
@@ -1036,9 +1037,26 @@ async function advancedSearchVendors(filters = {}) {
     publicView = false,
   } = filters;
 
-  const searchQuery = String(q || name || '').trim().toLowerCase();
+  let rawSearchQuery = String(q || name || '').trim().toLowerCase();
+  let locationFilter = String(location || '').trim().toLowerCase();
+  if (locationFilter === 'all') locationFilter = '';
+
+  // Extract city name if present in search query (e.g., "DJ in Ahmedabad" -> query="dj", inferredCity="ahmedabad")
+  let inferredCity = null;
+  const knownCities = Object.keys(CITY_COORDS);
+  for (const city of knownCities) {
+    const cityRegex = new RegExp(`\\b(in|at|near)?\\s*${city}\\b`, 'i');
+    if (cityRegex.test(rawSearchQuery)) {
+      inferredCity = city;
+      rawSearchQuery = rawSearchQuery.replace(cityRegex, ' ').replace(/\s+/g, ' ').trim();
+      break;
+    }
+  }
+  if (!locationFilter && inferredCity) {
+    locationFilter = inferredCity;
+  }
+
   const categoryFilter = String(categoryId || category || '').trim().toLowerCase();
-  const locationFilter = String(location || '').trim().toLowerCase();
   const checkStart = startDate || date || null;
   const checkEnd = endDate || checkStart || null;
   const minPaise = minPricePaise !== undefined
@@ -1054,9 +1072,9 @@ async function advancedSearchVendors(filters = {}) {
 
   const requiredAgreementVersion = String(await getConfigValue('CURRENT_VENDOR_AGREEMENT_VERSION', 'v1.0'));
 
-  // Resolve category filter to any matching category ID/slug/name or child categories
+  // Resolve category filter to any matching category ID/slug/name or child/parent categories + aliases
   let matchingCategoryIds = new Set();
-  if (categoryFilter) {
+  if (categoryFilter && categoryFilter !== 'all') {
     const resolvedCat = await categoriesRepo.resolveCategoryBySlugOrId(categoryFilter);
     if (resolvedCat) {
       matchingCategoryIds.add(resolvedCat.id.toLowerCase());
@@ -1070,10 +1088,38 @@ async function advancedSearchVendors(filters = {}) {
           matchingCategoryIds.add(c.name.toLowerCase());
         }
       }
+      // If child category, also include parent category
+      if (resolvedCat.parentId) {
+        matchingCategoryIds.add(resolvedCat.parentId.toLowerCase());
+        const parent = inMemoryStore.categories.find((c) => c.id === resolvedCat.parentId);
+        if (parent) {
+          matchingCategoryIds.add(parent.slug.toLowerCase());
+          matchingCategoryIds.add(parent.name.toLowerCase());
+        }
+      }
     } else {
       matchingCategoryIds.add(categoryFilter);
     }
+
+    // Check alias mapping
+    if (CATEGORY_ALIASES && CATEGORY_ALIASES[categoryFilter]) {
+      for (const aid of CATEGORY_ALIASES[categoryFilter]) {
+        matchingCategoryIds.add(aid.toLowerCase());
+        const found = inMemoryStore.categories.find((c) => c.id === aid);
+        if (found) {
+          matchingCategoryIds.add(found.slug.toLowerCase());
+          matchingCategoryIds.add(found.name.toLowerCase());
+        }
+      }
+    }
   }
+
+  // Tokenize search query for flexible partial matching
+  const stopWords = new Set(['in', 'at', 'near', 'for', 'and', '&', 'the', 'of', 'a', 'an']);
+  const queryTokens = rawSearchQuery
+    .split(/[\s,+/]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0 && !stopWords.has(t));
 
   // Load candidate vendors
   let allVendors = [];
@@ -1118,7 +1164,7 @@ async function advancedSearchVendors(filters = {}) {
     const vendorDiscounts = await packagesRepo.getVendorDiscounts(vendor.id, { activeOnly: true });
 
     // 4. Category match check (vendor primary category, vendor_categories, or any package category)
-    if (categoryFilter) {
+    if (matchingCategoryIds.size > 0) {
       const vPrimary = String(vendor.category || '').toLowerCase();
       const vCats = (vendor.categories || []).flatMap((c) => [
         String(c.categoryId || '').toLowerCase(),
@@ -1129,28 +1175,45 @@ async function advancedSearchVendors(filters = {}) {
 
       const matched =
         matchingCategoryIds.has(vPrimary) ||
-        vPrimary.includes(categoryFilter) ||
-        vCats.some((c) => matchingCategoryIds.has(c) || c.includes(categoryFilter)) ||
-        pkgCats.some((c) => matchingCategoryIds.has(c) || c.includes(categoryFilter));
+        [...matchingCategoryIds].some((c) => vPrimary.includes(c) || c.includes(vPrimary)) ||
+        vCats.some((c) => matchingCategoryIds.has(c) || [...matchingCategoryIds].some((mc) => c.includes(mc))) ||
+        pkgCats.some((c) => matchingCategoryIds.has(c) || [...matchingCategoryIds].some((mc) => c.includes(mc)));
 
       if (!matched) continue;
     }
 
     // 5. Partial name / text search check (FR-SRCH-01)
-    if (searchQuery) {
+    if (queryTokens.length > 0) {
+      const vendorServices = inMemoryStore.services.filter((s) => s.vendor_id === vendor.id);
       const haystacks = [
         vendor.businessName,
         vendor.description,
         vendor.category,
         vendor.location,
+        vendor.address,
+        ...(vendor.serviceAreas || []),
         ...(vendor.categories || []).map((c) => c.name),
-        ...allVendorPackages.map((p) => `${p.name} ${p.description}`),
+        ...allVendorPackages.map((p) => `${p.name} ${p.description} ${(p.inclusions || []).join(' ')}`),
+        ...vendorServices.map((s) => `${s.title} ${s.description}`),
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
 
-      if (!haystacks.includes(searchQuery)) continue;
+      // Check if raw query is contained OR all tokens are matched OR any token matches an alias of vendor's categories
+      const matchesAllTokens = queryTokens.every((token) => haystacks.includes(token));
+      const matchesCategoryAlias = queryTokens.some((token) => {
+        if (!CATEGORY_ALIASES || !CATEGORY_ALIASES[token]) return false;
+        const mappedIds = CATEGORY_ALIASES[token];
+        const vCatIds = [
+          String(vendor.category || '').toLowerCase(),
+          ...(vendor.categories || []).map((c) => String(c.categoryId || '').toLowerCase()),
+          ...allVendorPackages.map((p) => String(p.categoryId || '').toLowerCase()),
+        ];
+        return mappedIds.some((mid) => vCatIds.includes(mid.toLowerCase()));
+      });
+
+      if (!haystacks.includes(rawSearchQuery) && !matchesAllTokens && !matchesCategoryAlias) continue;
     }
 
     // 6. Location & Service Radius Eligibility (FR-VEN-08, FR-SRCH-02)
@@ -1165,7 +1228,7 @@ async function advancedSearchVendors(filters = {}) {
         String(vendor.address || '').toLowerCase().includes(locationFilter) ||
         (vendor.serviceAreas || []).some((a) => String(a).toLowerCase().includes(locationFilter));
 
-      const radiusMatch = distanceKm !== null && distanceKm <= Number(vendor.serviceRadiusKm || 25);
+      const radiusMatch = distanceKm !== null && distanceKm <= Number(vendor.serviceRadiusKm || 50);
 
       if (!locTextMatch && !radiusMatch) continue;
     }

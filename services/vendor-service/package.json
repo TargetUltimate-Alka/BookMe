@@ -9,8 +9,9 @@
     "seed:demo": "node src/scripts/generateDemoData.js",
     "test:srs": "node --test tests/srsVendorModule.test.js",
     "test:demo": "node tests/demoData.test.js",
+    "test:search": "node tests/searchDiscovery.test.js",
     "test:integration": "node test/integration.test.js",
-    "test": "node --test tests/srsVendorModule.test.js && node tests/demoData.test.js && node test/integration.test.js"
+    "test": "node --test tests/srsVendorModule.test.js && node tests/demoData.test.js && node tests/searchDiscovery.test.js && node test/integration.test.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.6.0",
