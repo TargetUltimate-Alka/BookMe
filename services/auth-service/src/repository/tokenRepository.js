@@ -1,34 +1,44 @@
 const { query } = require('../db/pool');
 
 class TokenRepository {
-  async createRefreshToken({ id, userId, token, expiresAt }) {
+  async createRefreshToken({ id, userId, tokenHash, familyId, expiresAt }) {
     const text = `
-      INSERT INTO refresh_tokens (id, user_id, token, expires_at)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, user_id, token, expires_at, revoked, created_at;
+      INSERT INTO refresh_tokens (id, user_id, token_hash, family_id, expires_at, revoked)
+      VALUES ($1, $2, $3, $4, $5, FALSE)
+      RETURNING id, user_id, token_hash, family_id, expires_at, revoked, created_at;
     `;
-    const values = [id, userId, token, expiresAt];
+    const values = [id, userId, tokenHash, familyId, expiresAt];
     const res = await query(text, values);
     return res.rows[0];
   }
 
-  async findRefreshToken(token) {
+  async findRefreshTokenByHash(tokenHash) {
     const text = `
-      SELECT id, user_id, token, expires_at, revoked, created_at
+      SELECT id, user_id, token_hash, family_id, expires_at, revoked, created_at
       FROM refresh_tokens
-      WHERE token = $1;
+      WHERE token_hash = $1;
     `;
-    const res = await query(text, [token]);
+    const res = await query(text, [tokenHash]);
     return res.rows[0] || null;
   }
 
-  async revokeRefreshToken(token) {
+  async revokeRefreshTokenByHash(tokenHash) {
     const text = `
       UPDATE refresh_tokens
       SET revoked = TRUE
-      WHERE token = $1;
+      WHERE token_hash = $1;
     `;
-    await query(text, [token]);
+    await query(text, [tokenHash]);
+    return true;
+  }
+
+  async revokeTokenFamily(familyId) {
+    const text = `
+      UPDATE refresh_tokens
+      SET revoked = TRUE
+      WHERE family_id = $1;
+    `;
+    await query(text, [familyId]);
     return true;
   }
 

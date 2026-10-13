@@ -11,6 +11,9 @@ class InMemoryStore {
     this.eventChecklist = new Map();
     this.bookings = new Map();
     this.bookingHistory = new Map();
+    this.counterOffers = new Map();
+    this.notifyRequests = new Map();
+    this.idempotencyKeys = new Map();
     this.processedEvents = new Set();
 
     // Pre-populate seed event for instantaneous rich testing in UI
@@ -90,8 +93,125 @@ class InMemoryStore {
       vendor_name_snapshot: 'Grand Palace Banquet',
       package_name_snapshot: 'Royal Feast Package',
       price_snapshot: 120000.0,
+      agreed_amount_paise: 12000000,
+      deposit_amount_paise: 4800000,
+      balance_amount_paise: 7200000,
       status: 'CONFIRMED',
       vendor_response_due_at: null,
+      payment_due_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    // Seed for usr_customer_demo and vnd_sunset_caterers
+    const demoEventId = 'evt-demo-1002';
+    this.events.set(demoEventId, {
+      id: demoEventId,
+      customer_id: 'usr_customer_demo',
+      name: 'Aarav & Maya Grand Wedding',
+      event_type: 'Wedding',
+      event_date: eventDate,
+      budget: 500000.0,
+      guest_count: 200,
+      city: 'Ahmedabad',
+      status: 'PLANNING',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    budgetCategories.forEach((b) => {
+      const bId = `bgt-${crypto.randomUUID()}`;
+      this.eventBudget.set(bId, {
+        id: bId,
+        event_id: demoEventId,
+        category: b.category,
+        planned_amount: b.planned_amount,
+        actual_amount: b.actual_amount,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    });
+
+    tasks.forEach((t) => {
+      const cId = `chk-${crypto.randomUUID()}`;
+      const d = new Date(today.getTime() + t.due_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      this.eventChecklist.set(cId, {
+        id: cId,
+        event_id: demoEventId,
+        task: t.task,
+        category: t.category,
+        due_date: d,
+        done: t.done,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    });
+
+    const bkgConfirmed = 'bkg-demo-2002';
+    this.bookings.set(bkgConfirmed, {
+      id: bkgConfirmed,
+      event_id: demoEventId,
+      customer_id: 'usr_customer_demo',
+      vendor_id: 'vnd_sunset_caterers',
+      service_id: 'svc_789',
+      package_id: 'pkg_111',
+      category: 'Catering',
+      booking_date: eventDate,
+      vendor_name_snapshot: 'Sunset Catering Partner',
+      package_name_snapshot: 'Gold Buffet Package',
+      price_snapshot: 120000.0,
+      agreed_amount_paise: 12000000,
+      deposit_amount_paise: 4800000,
+      balance_amount_paise: 7200000,
+      status: 'CONFIRMED',
+      vendor_response_due_at: null,
+      payment_due_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const bkgAccepted = 'bkg-demo-2003';
+    this.bookings.set(bkgAccepted, {
+      id: bkgAccepted,
+      event_id: demoEventId,
+      customer_id: 'usr_customer_demo',
+      vendor_id: 'vnd_sunset_caterers',
+      service_id: 'svc_789',
+      package_id: 'pkg_111',
+      category: 'Catering',
+      booking_date: eventDate,
+      vendor_name_snapshot: 'Sunset Catering Partner',
+      package_name_snapshot: 'Gold Buffet Package',
+      price_snapshot: 120000.0,
+      agreed_amount_paise: 12000000,
+      deposit_amount_paise: 4800000,
+      balance_amount_paise: 7200000,
+      status: 'ACCEPTED',
+      vendor_response_due_at: null,
+      payment_due_at: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+      deposit_due_at: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const bkgRequested = 'bkg-demo-2004';
+    this.bookings.set(bkgRequested, {
+      id: bkgRequested,
+      event_id: demoEventId,
+      customer_id: 'usr_customer_demo',
+      vendor_id: 'vnd_sunset_caterers',
+      service_id: 'svc_789',
+      package_id: 'pkg_111',
+      category: 'Catering',
+      booking_date: eventDate,
+      vendor_name_snapshot: 'Sunset Catering Partner',
+      package_name_snapshot: 'Gold Buffet Package',
+      price_snapshot: 120000.0,
+      agreed_amount_paise: 12000000,
+      deposit_amount_paise: 4800000,
+      balance_amount_paise: 7200000,
+      status: 'REQUESTED',
+      vendor_response_due_at: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
       payment_due_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -363,42 +483,87 @@ class InMemoryStore {
 
     // 5. BOOKINGS
     if (/INSERT INTO bookings/i.test(cleanSql)) {
-      const [
-        eventId,
-        customerId,
-        vendorId,
-        serviceId,
-        packageId,
-        category,
-        bookingDate,
-        vendorNameSnapshot,
-        packageNameSnapshot,
-        priceSnapshot,
-        vendorResponseDueAt,
-      ] = params;
+      const colMatch = cleanSql.match(/INSERT INTO bookings\s*\((.+?)\)/i);
+      const cols = colMatch ? colMatch[1].split(',').map((c) => c.trim()) : [];
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       const booking = {
         id,
-        event_id: eventId,
-        customer_id: customerId,
-        vendor_id: vendorId,
-        service_id: serviceId,
-        package_id: packageId,
-        category,
-        booking_date: bookingDate,
-        vendor_name_snapshot: vendorNameSnapshot,
-        package_name_snapshot: packageNameSnapshot,
-        price_snapshot: Number(priceSnapshot),
-        status: 'PENDING',
-        vendor_response_due_at: vendorResponseDueAt,
+        event_id: null,
+        event_item_id: null,
+        customer_id: null,
+        vendor_id: null,
+        service_id: null,
+        package_id: null,
+        category: null,
+        booking_date: null,
+        vendor_name_snapshot: null,
+        package_name_snapshot: null,
+        price_snapshot: 0,
+        agreed_amount_paise: 0,
+        deposit_amount_paise: 0,
+        balance_amount_paise: 0,
+        security_deposit_paise: 0,
+        rush_surcharge_paise: 0,
+        delivery_choice: 'NONE',
+        delivery_address: null,
+        check_in_at: null,
+        check_in_latitude: null,
+        check_in_longitude: null,
+        status: cleanSql.includes("'REQUESTED'") ? 'REQUESTED' : 'PENDING',
+        vendor_response_due_at: null,
         payment_due_at: null,
+        deposit_due_at: null,
+        balance_due_at: null,
+        quantity: 1,
+        addon_ids: [],
+        notes: null,
         cancellation_reason: null,
         rejection_reason: null,
         cancelled_by: null,
         created_at: now,
         updated_at: now,
       };
+
+      if (cols.length > 0) {
+        cols.forEach((col, idx) => {
+          booking[col] = params[idx];
+        });
+      } else {
+        const [
+          eventId,
+          customerId,
+          vendorId,
+          serviceId,
+          packageId,
+          category,
+          bookingDate,
+          vendorNameSnapshot,
+          packageNameSnapshot,
+          priceSnapshot,
+          vendorResponseDueAt,
+        ] = params;
+        booking.event_id = eventId;
+        booking.customer_id = customerId;
+        booking.vendor_id = vendorId;
+        booking.service_id = serviceId;
+        booking.package_id = packageId;
+        booking.category = category;
+        booking.booking_date = bookingDate;
+        booking.vendor_name_snapshot = vendorNameSnapshot;
+        booking.package_name_snapshot = packageNameSnapshot;
+        booking.price_snapshot = Number(priceSnapshot);
+        booking.vendor_response_due_at = vendorResponseDueAt;
+      }
+
+      if (!booking.agreed_amount_paise && booking.price_snapshot) {
+        booking.agreed_amount_paise = Math.round(Number(booking.price_snapshot) * 100);
+      }
+      if (!booking.deposit_amount_paise && booking.agreed_amount_paise) {
+        booking.deposit_amount_paise = Math.round(booking.agreed_amount_paise * 0.4);
+        booking.balance_amount_paise = booking.agreed_amount_paise - booking.deposit_amount_paise;
+      }
+
       this.bookings.set(id, booking);
       return { rows: [booking], rowCount: 1 };
     }
@@ -411,7 +576,10 @@ class InMemoryStore {
 
     if (/SELECT .* FROM bookings WHERE customer_id/i.test(cleanSql)) {
       const customerId = params[0];
-      const rows = Array.from(this.bookings.values()).filter((b) => b.customer_id === customerId);
+      let rows = Array.from(this.bookings.values()).filter((b) => b.customer_id === customerId);
+      if (params.length > 1 && typeof params[1] === 'string' && params[1] !== '10' && params[1] !== '20') {
+        rows = rows.filter((b) => b.status === params[1]);
+      }
       return { rows, rowCount: rows.length };
     }
 
@@ -421,24 +589,38 @@ class InMemoryStore {
       return { rows, rowCount: rows.length };
     }
 
-    if (/SELECT .* FROM bookings WHERE vendor_id =/i.test(cleanSql)) {
-      const vendorId = params[0];
-      const rows = Array.from(this.bookings.values()).filter((b) => b.vendor_id === vendorId);
+    if (/SELECT .* FROM bookings WHERE event_item_id =/i.test(cleanSql)) {
+      const eventItemId = params[0];
+      const rows = Array.from(this.bookings.values()).filter((b) => b.event_item_id === eventItemId);
       return { rows, rowCount: rows.length };
     }
 
-    if (/status = 'PENDING' AND vendor_response_due_at </i.test(cleanSql)) {
+    if (/SELECT .* FROM bookings WHERE vendor_id =/i.test(cleanSql)) {
+      const vendorId = params[0];
+      let rows = Array.from(this.bookings.values()).filter((b) => b.vendor_id === vendorId);
+      if (params.length > 1 && typeof params[1] === 'string' && params[1] !== '10' && params[1] !== '20') {
+        rows = rows.filter((b) => b.status === params[1]);
+      }
+      return { rows, rowCount: rows.length };
+    }
+
+    if (/(status = 'PENDING'|status = 'REQUESTED') AND vendor_response_due_at </i.test(cleanSql)) {
       const now = new Date().toISOString();
       const rows = Array.from(this.bookings.values()).filter(
-        (b) => b.status === 'PENDING' && b.vendor_response_due_at && b.vendor_response_due_at < now
+        (b) =>
+          (b.status === 'PENDING' || b.status === 'REQUESTED') &&
+          b.vendor_response_due_at &&
+          b.vendor_response_due_at < now
       );
       return { rows, rowCount: rows.length };
     }
 
-    if (/status = 'ACCEPTED' AND payment_due_at </i.test(cleanSql)) {
+    if (/status = 'ACCEPTED' AND (payment_due_at|deposit_due_at) </i.test(cleanSql)) {
       const now = new Date().toISOString();
       const rows = Array.from(this.bookings.values()).filter(
-        (b) => b.status === 'ACCEPTED' && b.payment_due_at && b.payment_due_at < now
+        (b) =>
+          b.status === 'ACCEPTED' &&
+          ((b.payment_due_at && b.payment_due_at < now) || (b.deposit_due_at && b.deposit_due_at < now))
       );
       return { rows, rowCount: rows.length };
     }
@@ -448,20 +630,31 @@ class InMemoryStore {
       return { rows, rowCount: rows.length };
     }
 
-    if (/UPDATE bookings SET status =/i.test(cleanSql)) {
-      const id = params[params.length - 1];
-      const booking = this.bookings.get(id);
+    if (/UPDATE bookings SET/i.test(cleanSql)) {
+      let id = params[params.length - 1];
+      let booking = this.bookings.get(id);
+      if (!booking) {
+        for (const p of params) {
+          if (typeof p === 'string' && this.bookings.has(p)) {
+            booking = this.bookings.get(p);
+            id = p;
+            break;
+          }
+        }
+      }
       if (!booking) return { rows: [], rowCount: 0 };
 
-      const status = params[0];
-      booking.status = status;
-      if (params.length > 2) {
-        if (cleanSql.includes('payment_due_at')) booking.payment_due_at = params[1];
-        if (cleanSql.includes('rejection_reason')) booking.rejection_reason = params[1];
-        if (cleanSql.includes('cancellation_reason')) {
-          booking.cancellation_reason = params[1];
-          booking.cancelled_by = params[2];
-        }
+      const setPartMatch = cleanSql.match(/SET (.+?) WHERE/i);
+      if (setPartMatch) {
+        const clauses = setPartMatch[1].split(',').map((s) => s.trim());
+        clauses.forEach((clause) => {
+          const m = clause.match(/([a-zA-Z0-9_]+)\s*=\s*\$(\d+)/);
+          if (m) {
+            const field = m[1];
+            const paramIdx = parseInt(m[2], 10) - 1;
+            booking[field] = params[paramIdx];
+          }
+        });
       }
       booking.updated_at = new Date().toISOString();
       return { rows: [booking], rowCount: 1 };
@@ -491,6 +684,123 @@ class InMemoryStore {
       const bookingId = params[0];
       const rows = this.bookingHistory.get(bookingId) || [];
       return { rows, rowCount: rows.length };
+    }
+
+    // 7. IDEMPOTENCY KEYS
+    if (/SELECT .* FROM idempotency_keys WHERE idempotency_key =/i.test(cleanSql)) {
+      const key = params[0];
+      const record = this.idempotencyKeys.get(key);
+      if (record) {
+        return {
+          rows: [
+            {
+              response_status: record.response_status,
+              response_body: typeof record.response_body === 'string' ? JSON.parse(record.response_body) : record.response_body,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
+    if (/INSERT INTO idempotency_keys/i.test(cleanSql)) {
+      const [key, path, status, body] = params;
+      this.idempotencyKeys.set(key, {
+        idempotency_key: key,
+        request_path: path,
+        response_status: Number(status),
+        response_body: typeof body === 'string' ? JSON.parse(body) : body,
+        created_at: new Date().toISOString(),
+      });
+      return { rows: [], rowCount: 1 };
+    }
+
+    // 8. COUNTER OFFERS
+    if (/INSERT INTO counter_offers/i.test(cleanSql)) {
+      const [bookingId, proposedByRole, amountPaise, counterNumber, expiresAt] = params;
+      const id = crypto.randomUUID();
+      const co = {
+        id,
+        booking_id: bookingId,
+        proposed_by_role: proposedByRole,
+        amount_paise: Number(amountPaise),
+        counter_number: Number(counterNumber),
+        status: 'PENDING',
+        expires_at: expiresAt,
+        created_at: new Date().toISOString(),
+      };
+      this.counterOffers.set(id, co);
+      return { rows: [co], rowCount: 1 };
+    }
+
+    if (/SELECT .* FROM counter_offers WHERE booking_id =/i.test(cleanSql)) {
+      const bookingId = params[0];
+      const rows = Array.from(this.counterOffers.values()).filter((c) => c.booking_id === bookingId);
+      rows.sort((a, b) => a.counter_number - b.counter_number);
+      return { rows, rowCount: rows.length };
+    }
+
+    if (/SELECT .* FROM counter_offers WHERE id =/i.test(cleanSql)) {
+      const id = params[0];
+      const co = this.counterOffers.get(id);
+      return { rows: co ? [co] : [], rowCount: co ? 1 : 0 };
+    }
+
+    if (/UPDATE counter_offers SET status =/i.test(cleanSql)) {
+      const status = params[0];
+      const id = params[1] || params[params.length - 1];
+      const co = this.counterOffers.get(id);
+      if (co) {
+        co.status = status;
+        return { rows: [co], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
+    // 9. NOTIFY REQUESTS
+    if (/SELECT COUNT\(\*\) .* FROM notify_requests WHERE customer_id =/i.test(cleanSql)) {
+      const customerId = params[0];
+      const count = Array.from(this.notifyRequests.values()).filter(
+        (n) => n.customer_id === customerId && n.status === 'ACTIVE'
+      ).length;
+      return { rows: [{ count: count.toString(), total: count.toString() }], rowCount: 1 };
+    }
+
+    if (/INSERT INTO notify_requests/i.test(cleanSql)) {
+      const [customerId, eventItemId, packageId, categoryId, targetDate] = params;
+      const id = crypto.randomUUID();
+      const nr = {
+        id,
+        customer_id: customerId,
+        event_item_id: eventItemId || null,
+        package_id: packageId || null,
+        category_id: categoryId || null,
+        target_date: targetDate,
+        status: 'ACTIVE',
+        created_at: new Date().toISOString(),
+      };
+      this.notifyRequests.set(id, nr);
+      return { rows: [nr], rowCount: 1 };
+    }
+
+    if (/SELECT .* FROM notify_requests WHERE customer_id =/i.test(cleanSql)) {
+      const customerId = params[0];
+      const rows = Array.from(this.notifyRequests.values()).filter(
+        (n) => n.customer_id === customerId && n.status === 'ACTIVE'
+      );
+      return { rows, rowCount: rows.length };
+    }
+
+    if (/DELETE FROM notify_requests WHERE id =/i.test(cleanSql)) {
+      const id = params[0];
+      const customerId = params[1];
+      const nr = this.notifyRequests.get(id);
+      if (nr && (!customerId || nr.customer_id === customerId)) {
+        this.notifyRequests.delete(id);
+        return { rows: [{ id }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
     }
 
     // Default fallback

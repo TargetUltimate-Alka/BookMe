@@ -134,11 +134,16 @@ async function request(endpoint, options = {}) {
   }
 
   if (!response.ok) {
-    const errorMsg = data?.error?.message || response.statusText || 'An unexpected error occurred';
+    const errorMsg =
+      data?.message ||
+      data?.error?.message ||
+      (Array.isArray(data?.details) && data.details.length > 0 && data.details[0].issue) ||
+      response.statusText ||
+      'An unexpected error occurred';
     const error = new Error(errorMsg);
     error.status = response.status;
-    error.code = data?.error?.code || `HTTP_${response.status}`;
-    error.details = data?.error?.details || [];
+    error.code = data?.code || data?.error?.code || `HTTP_${response.status}`;
+    error.details = data?.details || data?.error?.details || [];
     error.raw = data;
     throw error;
   }

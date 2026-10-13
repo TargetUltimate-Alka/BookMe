@@ -21,7 +21,8 @@ class ChecklistController {
 
   async updateChecklistItem(req, res, next) {
     try {
-      const result = await checklistService.updateItem(req.params.id, req.user, req.body);
+      const itemId = req.params.itemId || req.params.id;
+      const result = await checklistService.updateItem(itemId, req.user, req.body);
       res.status(200).json(result);
     } catch (err) {
       next(err);
@@ -30,7 +31,8 @@ class ChecklistController {
 
   async deleteChecklistItem(req, res, next) {
     try {
-      await checklistService.deleteItem(req.params.id, req.user);
+      const itemId = req.params.itemId || req.params.id;
+      await checklistService.deleteItem(itemId, req.user);
       res.status(204).send();
     } catch (err) {
       next(err);

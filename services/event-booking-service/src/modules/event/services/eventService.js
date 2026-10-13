@@ -6,19 +6,80 @@ const { calculateDefaultBudget } = require('../constants/budgetTemplates');
 const { generateDefaultChecklist } = require('../constants/checklistTemplates');
 const logger = require('../../../shared/logger');
 
+function formatPlannerEvent(event) {
+  const dateFrom =
+    event.date_from ||
+    (event.dateRange && event.dateRange.startDate) ||
+    event.event_date ||
+    new Date().toISOString().split('T')[0];
+  const dateTo =
+    event.date_to ||
+    (event.dateRange && event.dateRange.endDate) ||
+    dateFrom;
+
+  const venueLocation =
+    event.venue_location ||
+    (event.city
+      ? {
+          address: event.city,
+          city: event.city,
+          latitude: 23.0225,
+          longitude: 72.5714,
+        }
+      : {
+          address: 'Main Event Venue',
+          city: 'Ahmedabad',
+          latitude: 23.0225,
+          longitude: 72.5714,
+        });
+
+  return {
+    id: event.id,
+    customerId: event.customer_id,
+    name: event.name,
+    dateFrom: typeof dateFrom === 'string' ? dateFrom.split('T')[0] : new Date(dateFrom).toISOString().split('T')[0],
+    dateTo: typeof dateTo === 'string' ? dateTo.split('T')[0] : new Date(dateTo).toISOString().split('T')[0],
+    venueLocation,
+    guestCount: Number(event.guest_count || 100),
+    status: event.status || 'PLANNING',
+    createdAt: event.created_at
+      ? (event.created_at.toISOString ? event.created_at.toISOString() : event.created_at)
+      : new Date().toISOString(),
+    // Legacy fields for backward compatibility with existing tests
+    customer_id: event.customer_id,
+    event_type: event.event_type || 'Wedding',
+    event_date: typeof dateFrom === 'string' ? dateFrom.split('T')[0] : new Date(dateFrom).toISOString().split('T')[0],
+    budget: Number(event.budget || 0),
+    guest_count: Number(event.guest_count || 100),
+    city: event.city || (venueLocation ? venueLocation.city : null),
+    budget_items: event.budget_items || [],
+    checklist_count: event.checklist_count || 0,
+    days_left: event.days_left,
+  };
+}
+
 class EventService {
   /**
    * Create an event with transactional default budget and checklist generation
    */
   async createEvent(customerId, eventData) {
+    const dateFrom = eventData.dateFrom || eventData.date_from || eventData.event_date || new Date().toISOString().split('T')[0];
+    const dateTo = eventData.dateTo || eventData.date_to || dateFrom;
+    const eventDate = typeof dateFrom === 'string' ? dateFrom.split('T')[0] : new Date(dateFrom).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
-    if (eventData.event_date < today) {
+
+    if (eventDate < today) {
       const err = new Error('event_date must be today or in the future');
       err.status = 400;
       err.code = 'VALIDATION_ERROR';
       err.details = [{ field: 'event_date', issue: 'Date cannot be in the past' }];
       throw err;
     }
+
+    const guestCount = Number(eventData.guestCount || eventData.guest_count || 100);
+    const budget = Number(eventData.budget || 500000);
+    const eventType = eventData.event_type || 'Wedding';
+    const city = eventData.city || (eventData.venueLocation ? eventData.venueLocation.city : null);
 
     const client = await getClient();
     try {
@@ -29,11 +90,11 @@ class EventService {
         {
           customerId,
           name: eventData.name,
-          eventType: eventData.event_type,
-          eventDate: eventData.event_date,
-          budget: Number(eventData.budget),
-          guestCount: Number(eventData.guest_count),
-          city: eventData.city,
+          eventType,
+          eventDate,
+          budget,
+          guestCount,
+          city,
         },
         client
       );
@@ -42,15 +103,25 @@ class EventService {
       const defaultBudget = calculateDefaultBudget(event.event_type, event.budget);
       const budgetItems = await budgetRepository.insertBatch(event.id, defaultBudget, client);
 
-      // 3. Generate and Insert Default Checklist Tasks
-      const defaultChecklist = generateDefaultChecklist(event.event_type, event.event_date);
-      const checklistItems = await checklistRepository.insertBatch(event.id, defaultChecklist, client);
+      // 3. Generate and Insert Default Checklist Tasks (FR-PLAN-01)
+      let checklistTasks = generateDefaultChecklist(event.event_type, event.event_date);
+      if (Array.isArray(eventData.items) && eventData.items.length > 0) {
+        const customTasks = eventData.items.map((it) => ({
+          task: it.task || `${it.category || 'Service'} Requirement`,
+          category: it.category || 'General',
+          dueDate: it.dueDate || it.due_date || event.event_date,
+          quantity: it.quantity || 1,
+          durationHours: it.durationHours || 4,
+          brand: it.brand || null,
+        }));
+        checklistTasks = [...customTasks, ...checklistTasks];
+      }
+      const checklistItems = await checklistRepository.insertBatch(event.id, checklistTasks, client);
 
       await client.query('COMMIT');
-
       logger.info(`Event created successfully: ${event.id}`, { customerId, eventId: event.id });
 
-      return {
+      const rawResult = {
         ...event,
         budget_items: budgetItems.map((b) => ({
           category: b.category,
@@ -58,7 +129,10 @@ class EventService {
           actual_amount: Number(b.actual_amount),
         })),
         checklist_count: checklistItems.length,
+        venue_location: eventData.venueLocation,
       };
+
+      return formatPlannerEvent(rawResult);
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error(`Failed to create event transaction: ${err.message}`);
@@ -87,20 +161,26 @@ class EventService {
       eventDate.setHours(0, 0, 0, 0);
       const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
 
-      return {
+      return formatPlannerEvent({
         ...evt,
-        budget: Number(evt.budget),
         days_left: Math.max(0, diffDays),
-      };
+      });
     });
 
+    const hasMore = offset + events.length < total;
+    const nextCursor = hasMore ? Buffer.from(String(offset + limit)).toString('base64') : null;
+
     return {
-      data: enriched,
+      items: enriched,
+      data: enriched, // legacy alias
       meta: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit) || 1,
+        cursor: query.cursor || null,
+        nextCursor,
+        hasMore,
       },
     };
   }
@@ -114,7 +194,8 @@ class EventService {
       throw err;
     }
 
-    if (user.role !== 'admin' && event.customer_id !== user.id) {
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supportagent';
+    if (!isAdmin && event.customer_id !== user.id) {
       const err = new Error('You do not have permission to view this event');
       err.status = 403;
       err.code = 'FORBIDDEN';
@@ -127,15 +208,13 @@ class EventService {
     eventDate.setHours(0, 0, 0, 0);
     const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
 
-    return {
+    return formatPlannerEvent({
       ...event,
-      budget: Number(event.budget),
       days_left: Math.max(0, diffDays),
-    };
+    });
   }
 
   async updateEvent(eventId, user, updateData) {
-    // 1. Verify access
     await this.getEventById(eventId, user);
 
     if (updateData.event_date) {
@@ -148,11 +227,14 @@ class EventService {
       }
     }
 
-    const updated = await eventRepository.updateEvent(eventId, updateData);
-    return {
-      ...updated,
-      budget: Number(updated.budget),
+    const payload = {
+      ...updateData,
+      guest_count: updateData.guestCount || updateData.guest_count,
+      city: updateData.city || (updateData.venueLocation ? updateData.venueLocation.city : undefined),
     };
+
+    const updated = await eventRepository.updateEvent(eventId, payload);
+    return formatPlannerEvent(updated);
   }
 
   async cancelEvent(eventId, user) {
@@ -162,7 +244,7 @@ class EventService {
     }
 
     const updated = await eventRepository.softDelete(eventId);
-    return { message: 'Event cancelled successfully', status: updated.status };
+    return { message: 'Event cancelled successfully', status: updated.status, id: eventId };
   }
 
   async getDashboard(eventId, user) {
@@ -174,15 +256,10 @@ class EventService {
       getClient(),
     ]);
 
-    // Query bookings for this event (safe direct read in same service database)
     let bookingRows = [];
     try {
       const bRes = await client.query(
-        `SELECT id, vendor_id, service_id, package_id, category, booking_date, 
-                vendor_name_snapshot, package_name_snapshot, price_snapshot, status
-         FROM bookings
-         WHERE event_id = $1
-         ORDER BY created_at DESC;`,
+        'SELECT id, service_id, package_id, category, price_snapshot, status FROM bookings WHERE event_id = $1',
         [eventId]
       );
       bookingRows = bRes.rows;
@@ -190,69 +267,37 @@ class EventService {
       client.release();
     }
 
-    // Budget aggregation
-    let plannedTotal = 0;
-    let actualTotal = 0;
-    for (const b of budgetRows) {
-      plannedTotal += Number(b.planned_amount);
-      actualTotal += Number(b.actual_amount);
-    }
+    const totalBudget = Number(event.budget);
+    const plannedBudget = budgetRows.reduce((sum, b) => sum + Number(b.planned_amount), 0);
+    const actualSpend = budgetRows.reduce((sum, b) => sum + Number(b.actual_amount), 0);
 
-    const remaining = Math.max(0, event.budget - actualTotal);
-    const overBudget = actualTotal > event.budget;
+    const budgetSummary = {
+      totalBudget,
+      plannedBudget,
+      actualSpend,
+      remainingBudget: totalBudget - actualSpend,
+    };
 
-    // Progress percentage calculation:
-    // (distinct categories with a CONFIRMED booking) ÷ (budget categories count) × 100
-    const confirmedCategories = new Set(
-      bookingRows
-        .filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-        .map((b) => b.category)
-        .filter(Boolean)
-    );
-
-    const totalCategoriesCount = Math.max(1, budgetRows.length);
-    const progressPercentage = Math.min(
-      100,
-      parseFloat(((confirmedCategories.size / totalCategoriesCount) * 100).toFixed(1))
-    );
+    const checklistSummary = {
+      total: checklistStats.total,
+      completed: checklistStats.completed,
+      percentage: checklistStats.total ? Math.round((checklistStats.completed / checklistStats.total) * 100) : 0,
+    };
 
     return {
-      event: {
-        id: event.id,
-        name: event.name,
-        event_type: event.event_type,
-        event_date: event.event_date,
-        days_left: event.days_left,
-        status: event.status,
+      event,
+      metrics: {
+        total_budget: totalBudget,
+        planned_budget: plannedBudget,
+        actual_spend: actualSpend,
+        remaining_budget: totalBudget - actualSpend,
+        checklist_progress: checklistSummary,
+        bookings_count: bookingRows.length,
       },
-      progress: {
-        percentage: progressPercentage,
-        confirmed_categories: confirmedCategories.size,
-        total_budget_categories: totalCategoriesCount,
-      },
-      budget: {
-        total: event.budget,
-        planned: plannedTotal,
-        actual: actualTotal,
-        remaining,
-        overBudget,
-      },
-      checklist: {
-        total: checklistStats.total || 0,
-        completed: checklistStats.completed || 0,
-        pending: checklistStats.pending || 0,
-        overdue: checklistStats.overdue || 0,
-      },
-      bookings: bookingRows.map((b) => ({
-        id: b.id,
-        vendor_id: b.vendor_id,
-        vendor_name: b.vendor_name_snapshot,
-        package_name: b.package_name_snapshot,
-        category: b.category,
-        amount: Number(b.price_snapshot),
-        status: b.status,
-        booking_date: b.booking_date,
-      })),
+      budgetSummary,
+      checklistSummary,
+      budget: budgetRows,
+      bookings: bookingRows,
     };
   }
 }

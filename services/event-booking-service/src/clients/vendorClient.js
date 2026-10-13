@@ -26,6 +26,24 @@ class MockVendorClient {
           },
         },
       },
+      vnd_sunset_caterers: {
+        id: 'vnd_sunset_caterers',
+        userId: 'vnd_sunset_caterers',
+        name: 'Sunset Catering Partner',
+        category: 'Catering',
+        verified: true,
+        active: true,
+        services: {
+          svc_789: {
+            id: 'svc_789',
+            title: 'Royal Wedding Buffet',
+            packages: {
+              pkg_111: { id: 'pkg_111', name: 'Gold Buffet Package', price: 120000 },
+              pkg_112: { id: 'pkg_112', name: 'Platinum Buffet Package', price: 180000 },
+            },
+          },
+        },
+      },
       vnd_101: {
         id: 'vnd_101',
         userId: 'usr_vendor_2',
@@ -161,9 +179,15 @@ class MockVendorClient {
 
   async getVendorByUserId(userId) {
     for (const v of Object.values(this.vendors)) {
-      if (v.userId === userId) {
+      if (v.userId === userId || v.id === userId) {
         return v;
       }
+    }
+    if (this.vendors[userId]) {
+      return this.vendors[userId];
+    }
+    if (userId && (userId.startsWith('vnd_') || userId.startsWith('usr_vendor'))) {
+      return { id: userId, userId, name: 'Vendor Test Partner', verified: true, active: true };
     }
     // Default fallback vendor for dev testing
     return this.vendors.vnd_456;
