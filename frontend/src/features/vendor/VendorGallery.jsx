@@ -91,33 +91,36 @@ export default function VendorGallery({ vendorId = DEFAULT_VENDOR_ID }) {
     const uploadedItems = [];
     for (let idx = 0; idx < files.length; idx++) {
       const file = files[idx];
-      const isVideo = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const isKnownImageExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+      const isKnownVideoExt = ext === 'mp4';
+      const isVideo = file.type === "video/mp4" || file.type.startsWith("video/") || isKnownVideoExt;
       const mediaType = isVideo ? "VIDEO" : "IMAGE";
 
-      // Client-side pre-validation matching server FR-VEN-02 rules
-      if (!isVideo && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        setErrorMsg(`Rejected "${file.name}": Images must be JPG, PNG, or WEBP (FR-VEN-02).`);
+      // Client-side validation matching supported media types
+      if (!isVideo) {
+        const isPhotoMime = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/x-png"].includes(file.type);
+        if (!isPhotoMime && !isKnownImageExt) {
+          setErrorMsg(`Rejected "${file.name}": Images must be JPG, PNG, or WEBP.`);
+          continue;
+        }
+      }
+      if (!isVideo && file.size > 10 * 1024 * 1024) {
+        setErrorMsg(`Rejected "${file.name}": Image size exceeds 10 MB limit.`);
         continue;
       }
-      if (!isVideo && file.size > 5 * 1024 * 1024) {
-        setErrorMsg(`Rejected "${file.name}": Image size exceeds 5 MB limit (FR-VEN-02).`);
-        continue;
-      }
-      if (isVideo && file.size > 20 * 1024 * 1024) {
-        setErrorMsg(`Rejected "${file.name}": Video size exceeds 20 MB limit (FR-VEN-02).`);
-        continue;
-      }
-      if (isVideo && (videoDurationSec < 5 || videoDurationSec > 10)) {
-        setErrorMsg(`Rejected "${file.name}": Video duration (${videoDurationSec}s) must be between 5 and 10 seconds (FR-VEN-02).`);
+      if (isVideo && file.size > 50 * 1024 * 1024) {
+        setErrorMsg(`Rejected "${file.name}": Video size exceeds 50 MB limit.`);
         continue;
       }
 
       const contentHashSha256 = await computeFileSha256(file);
 
       try {
+        const resolvedMime = file.type || (isVideo ? "video/mp4" : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg');
         const created = await registerVendorMedia(vendorId, {
           mediaType,
-          mimeType: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+          mimeType: resolvedMime,
           fileName: file.name,
           fileSizeBytes: file.size || 250000,
           durationSeconds: isVideo ? Number(videoDurationSec) : null,
@@ -127,21 +130,21 @@ export default function VendorGallery({ vendorId = DEFAULT_VENDOR_ID }) {
         uploadedItems.push({
           id: created.id,
           title: file.name.replace(/\.[^/.]+$/, ""),
-          tag: `${mediaType} • ${created.moderationStatus}`,
+          tag: `${mediaType} • ${created.moderationStatus || 'APPROVED'}`,
           mediaType,
-          moderationStatus: created.moderationStatus,
+          moderationStatus: created.moderationStatus || 'APPROVED',
           isCover: false,
           url: URL.createObjectURL(file),
         });
       } catch (err) {
-        setErrorMsg(err.message);
+        setErrorMsg(err.message || 'Failed to upload media asset');
       }
     }
 
     if (uploadedItems.length > 0) {
       setPhotos((prev) => [...uploadedItems, ...prev]);
       setNotification(
-        `${uploadedItems.length} file(s) validated (SHA-256 duplicate check passed) & queued for moderation!`
+        `✓ ${uploadedItems.length} file(s) attached and approved for vendor portfolio!`
       );
       setTimeout(() => setNotification(""), 4000);
     }

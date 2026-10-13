@@ -1,5 +1,10 @@
-import { useState } from "react";
-import { blockDate, bulkSetPackageAvailability } from "./api";
+import { useState, useEffect } from "react";
+import {
+  blockDate,
+  bulkSetPackageAvailability,
+  DEFAULT_VENDOR_CALENDAR_DATES,
+  saveVendorCalendarDates,
+} from "./api";
 
 const DEFAULT_VENDOR_ID = "vnd_sunset_caterers";
 const DEFAULT_PACKAGE_ID = "pkg_royal_feast";
@@ -8,22 +13,27 @@ export default function VendorCalendar({
   vendorId = DEFAULT_VENDOR_ID,
   packageId = DEFAULT_PACKAGE_ID,
 }) {
-  const [calendarDates, setCalendarDates] = useState([
-    { day: 1, date: "2026-12-01", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 2, date: "2026-12-02", status: "available", totalUnits: 3, bookedUnits: 1, slotName: "ALL_DAY" },
-    { day: 3, date: "2026-12-03", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 4, date: "2026-12-04", status: "booked", totalUnits: 2, bookedUnits: 2, note: "💍 Sold Out (2/2)", slotName: "EVENING" },
-    { day: 5, date: "2026-12-05", status: "blocked", totalUnits: 0, bookedUnits: 0, note: "🚫 Day Off", slotName: "ALL_DAY" },
-    { day: 6, date: "2026-12-06", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 7, date: "2026-12-07", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 8, date: "2026-12-08", status: "available", totalUnits: 3, bookedUnits: 1, slotName: "ALL_DAY" },
-    { day: 9, date: "2026-12-09", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 10, date: "2026-12-10", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 11, date: "2026-12-11", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 12, date: "2026-12-12", status: "booked", totalUnits: 2, bookedUnits: 2, note: "💍 Sangeet (2/2)", slotName: "EVENING" },
-    { day: 13, date: "2026-12-13", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-    { day: 14, date: "2026-12-14", status: "available", totalUnits: 3, bookedUnits: 0, slotName: "ALL_DAY" },
-  ]);
+  const [calendarDates, setCalendarDates] = useState(() => {
+    try {
+      const raw =
+        (vendorId ? localStorage.getItem(`bookme_vendor_capacity_${vendorId}`) : null) ||
+        localStorage.getItem(`bookme_vendor_capacity_vnd_sunset_caterers`);
+      return raw ? JSON.parse(raw) : DEFAULT_VENDOR_CALENDAR_DATES;
+    } catch {
+      return DEFAULT_VENDOR_CALENDAR_DATES;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const raw =
+        (vendorId ? localStorage.getItem(`bookme_vendor_capacity_${vendorId}`) : null) ||
+        localStorage.getItem(`bookme_vendor_capacity_vnd_sunset_caterers`);
+      if (raw) setCalendarDates(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, [vendorId]);
 
   const [bulkForm, setBulkForm] = useState({
     startDate: "2026-12-06",
@@ -40,18 +50,19 @@ export default function VendorCalendar({
     const newStatus = isNowBlocked ? "blocked" : "available";
     const newNote = isNowBlocked ? "🚫 Blocked" : null;
 
-    setCalendarDates((prev) =>
-      prev.map((d) =>
-        d.day === item.day
-          ? {
-              ...d,
-              status: newStatus,
-              totalUnits: isNowBlocked ? 0 : 3,
-              note: newNote,
-            }
-          : d
-      )
+    const updated = calendarDates.map((d) =>
+      d.day === item.day
+        ? {
+            ...d,
+            status: newStatus,
+            totalUnits: isNowBlocked ? 0 : 3,
+            note: newNote,
+          }
+        : d
     );
+
+    setCalendarDates(updated);
+    saveVendorCalendarDates(vendorId, updated);
 
     try {
       await blockDate(vendorId, {
@@ -75,25 +86,27 @@ export default function VendorCalendar({
   };
 
   const handleBulkUpdate = async () => {
+    const updated = calendarDates.map((d) => {
+      if (d.date >= bulkForm.startDate && d.date <= bulkForm.endDate) {
+        return {
+          ...d,
+          status: bulkForm.status === "BLOCKED" || Number(bulkForm.totalUnits) === 0 ? "blocked" : "available",
+          totalUnits: Number(bulkForm.totalUnits),
+          slotName: bulkForm.slotName,
+          note:
+            bulkForm.status === "BLOCKED"
+              ? "🚫 Blocked"
+              : `${bulkForm.totalUnits} units (${bulkForm.slotName})`,
+        };
+      }
+      return d;
+    });
+
+    setCalendarDates(updated);
+    saveVendorCalendarDates(vendorId, updated);
+
     try {
       const res = await bulkSetPackageAvailability(packageId, bulkForm);
-      setCalendarDates((prev) =>
-        prev.map((d) => {
-          if (d.date >= bulkForm.startDate && d.date <= bulkForm.endDate) {
-            return {
-              ...d,
-              status: bulkForm.status === "BLOCKED" || Number(bulkForm.totalUnits) === 0 ? "blocked" : "available",
-              totalUnits: Number(bulkForm.totalUnits),
-              slotName: bulkForm.slotName,
-              note:
-                bulkForm.status === "BLOCKED"
-                  ? "🚫 Blocked"
-                  : `${bulkForm.totalUnits} units (${bulkForm.slotName})`,
-            };
-          }
-          return d;
-        })
-      );
       setNotification(
         `✓ Bulk updated ${res.updatedCount || "range"} dates (${bulkForm.startDate} → ${bulkForm.endDate}) to ${bulkForm.totalUnits} units!`
       );

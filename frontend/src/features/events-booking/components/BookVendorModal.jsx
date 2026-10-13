@@ -3,6 +3,7 @@ import { Modal } from './Modal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 import { useEvents } from '../hooks/useEvents.js';
 import { bookingsApi } from '../api/bookingsApi.js';
+import { getVendorCapacityForDate } from '../../vendor/api.js';
 
 const CATEGORY_ITEMS_CATALOG = {
   'Venue & Catering': [
@@ -66,6 +67,8 @@ export function BookVendorModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [customEventDate, setCustomEventDate] = useState('');
+
   // Items Selection and Quantities state
   const [selectedItems, setSelectedItems] = useState({});
   const [customItems, setCustomItems] = useState([]);
@@ -110,6 +113,14 @@ export function BookVendorModal({
 
   const activeEvents = (events || []).filter((e) => e.status !== 'CANCELLED');
   const selectedEvent = activeEvents.find((e) => e.id === selectedEventId);
+
+  // Date-wise vendor capacity evaluation
+  const activeBookingDate =
+    customEventDate ||
+    (selectedEvent?.event_date ? String(selectedEvent.event_date).slice(0, 10) : '2026-12-01');
+
+  const targetVendorId = vendorInfo.vendorId || vendorInfo.id || 'vnd_sunset_caterers';
+  const vendorCapacity = getVendorCapacityForDate(targetVendorId, activeBookingDate);
 
   const cat = vendorInfo.category || 'General Service';
   const catalog =
@@ -228,6 +239,11 @@ export function BookVendorModal({
       return;
     }
 
+    if (vendorCapacity && !vendorCapacity.isAvailable) {
+      setErrorMsg(`Vendor is unavailable or sold out on ${formatDate(activeBookingDate)} (0 units remaining). Please select an open date.`);
+      return;
+    }
+
     if (totalCalculatedPrice <= 0 && activeItemsList.length === 0) {
       setErrorMsg('Please select at least one service item or package.');
       return;
@@ -305,9 +321,14 @@ export function BookVendorModal({
               type="button"
               className="eb-btn eb-btn-primary"
               onClick={handleConfirm}
-              disabled={submitting || !selectedEventId || totalCalculatedPrice <= 0}
+              disabled={submitting || !selectedEventId || totalCalculatedPrice <= 0 || (vendorCapacity && !vendorCapacity.isAvailable)}
+              title={vendorCapacity && !vendorCapacity.isAvailable ? 'Selected date is full or blocked by vendor' : 'Send booking inquiry'}
             >
-              {submitting ? 'Sending Request...' : 'Send Booking Request'}
+              {submitting
+                ? 'Sending Request...'
+                : vendorCapacity && !vendorCapacity.isAvailable
+                ? 'Date Full / Blocked'
+                : 'Send Booking Request'}
             </button>
           </div>
         </div>
@@ -430,11 +451,77 @@ export function BookVendorModal({
             </select>
           )}
 
-          {selectedEvent && (
-            <p style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '0.35rem' }}>
-              Booking Date: <strong>{formatDate(selectedEvent.event_date)}</strong> &bull; Location: {selectedEvent.city || 'Designated City'}
-            </p>
-          )}
+          {/* Booking Date & Vendor Date-Wise Available Capacity Card */}
+          <div
+            style={{
+              marginTop: '0.65rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '12px',
+              border: vendorCapacity?.isAvailable ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
+              background: vendorCapacity?.isAvailable ? '#f0fdf4' : '#fef2f2',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>{vendorCapacity?.isAvailable ? '🗓️' : '🚫'}</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: vendorCapacity?.isAvailable ? '#15803d' : '#991b1b' }}>
+                      {vendorCapacity?.isAvailable
+                        ? `Available: ${vendorCapacity.remainingUnits} of ${vendorCapacity.totalUnits} Units Open`
+                        : `Sold Out / Blocked by Vendor (0 Units Left)`}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '6px',
+                        background: vendorCapacity?.isAvailable ? '#dcfce7' : '#fee2e2',
+                        color: vendorCapacity?.isAvailable ? '#166534' : '#991b1b',
+                        border: vendorCapacity?.isAvailable ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                      }}
+                    >
+                      {vendorCapacity?.slotName || 'ALL_DAY'}
+                    </span>
+                  </div>
+
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: vendorCapacity?.isAvailable ? '#166534' : '#7f1d1d' }}>
+                    Selected Booking Date: <strong>{formatDate(activeBookingDate)}</strong>
+                    {selectedEvent?.city ? ` • Location: ${selectedEvent.city}` : ''}
+                    {vendorCapacity?.note ? ` • Note: ${vendorCapacity.note}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {/* Date preview / selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>Change Date:</label>
+                <input
+                  type="date"
+                  value={activeBookingDate}
+                  onChange={(e) => setCustomEventDate(e.target.value)}
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    fontSize: '0.8rem',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                  }}
+                  title="Check vendor date-wise availability for a specific event date"
+                />
+              </div>
+            </div>
+
+            {!vendorCapacity?.isAvailable && (
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #fca5a5', fontSize: '0.78rem', color: '#991b1b', fontWeight: 600 }}>
+                ⚠️ The vendor has marked this date as full or blocked in their operating portal. Please change the booking date above to proceed.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Items & Quantities Selection Section */}

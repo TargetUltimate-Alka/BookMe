@@ -23,8 +23,12 @@ export function RegisterForm({ onSwitchToLogin, initialRole = 'customer' }) {
   const handleSendOtp = () => {
     setOtpError(null);
     const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length < 10) {
-      setOtpError('Please enter a valid 10-digit mobile number');
+    if (cleaned.length !== 10) {
+      setOtpError('Please enter exactly 10 digits. Numbers longer or shorter than 10 digits are not accepted.');
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(cleaned)) {
+      setOtpError('Indian mobile numbers must start with 6, 7, 8, or 9');
       return;
     }
     setOtpSent(true);
@@ -62,8 +66,10 @@ export function RegisterForm({ onSwitchToLogin, initialRole = 'customer' }) {
     }
 
     const cleanedPhone = phone.replace(/\D/g, '');
-    if (!cleanedPhone || cleanedPhone.length < 10) {
-      errors.phone = 'Valid 10-digit phone number is required';
+    if (!cleanedPhone || cleanedPhone.length !== 10) {
+      errors.phone = 'Valid 10-digit mobile number is required (more than 10 digits are not accepted)';
+    } else if (!/^[6-9]\d{9}$/.test(cleanedPhone)) {
+      errors.phone = 'Mobile number must start with 6, 7, 8, or 9';
     } else if (!otpVerified) {
       errors.otp = 'Please verify your phone number via OTP (FR-ONB-01)';
     }
@@ -114,7 +120,8 @@ export function RegisterForm({ onSwitchToLogin, initialRole = 'customer' }) {
         if (onSwitchToLogin) {
           onSwitchToLogin({
             registeredEmail: email.trim(),
-            message: 'Account created successfully! Please sign in with your credentials to continue.',
+            registeredRole: role,
+            message: `Account created successfully as ${role === 'vendor' ? 'Service Vendor' : 'Customer'}! Please sign in with your credentials to continue.`,
           });
         }
       }, 900);
@@ -223,16 +230,38 @@ export function RegisterForm({ onSwitchToLogin, initialRole = 'customer' }) {
         <label className="auth-label" htmlFor="register-phone">
           Mobile Number & OTP Verification * (FR-ONB-01)
         </label>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0 12px',
+              background: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '10px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              userSelect: 'none',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
+            }}
+            title="Country Code: India (+91)"
+          >
+            <span style={{ fontSize: '1rem' }}>🇮🇳</span>
+            <span>+91</span>
+          </div>
           <div className="auth-input-wrap" style={{ flex: 1 }}>
             <input
               id="register-phone"
               type="tel"
+              maxLength={10}
               className={`auth-input ${fieldErrors.phone ? 'has-error' : ''}`}
-              placeholder="e.g. 9876543210"
+              placeholder="10-digit mobile number"
               value={phone}
               onChange={(e) => {
-                setPhone(e.target.value);
+                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setPhone(val);
                 setOtpVerified(false);
                 if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: null }));
               }}

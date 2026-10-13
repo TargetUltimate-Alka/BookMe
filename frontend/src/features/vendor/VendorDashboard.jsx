@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import VendorGallery from "./VendorGallery";
 import VendorPackages from "./VendorPackages";
 import VendorCalendar from "./VendorCalendar";
+import { useAuth } from "../auth/context/AuthContext";
 import {
   fetchKycStatus,
   completeDigiLockerKyc,
@@ -47,6 +48,45 @@ const LABELS = {
 };
 
 export default function VendorDashboard({ onSwitchToMarketplace }) {
+  const { user } = useAuth();
+  const activeVendorId = user?.role === 'vendor' && user?.id ? `vnd_${user.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}` : VENDOR_ID;
+  const activeVendorName = user?.role === 'vendor' && user?.name ? user.name : "Sunset Royal Caterers & Events";
+
+  // Strict RBAC Security Check: Customer accounts must NEVER see or manipulate vendor private records
+  if (user && user.role === "customer") {
+    return (
+      <div className="vendor-portal-wrap" style={{ padding: "4rem 1rem", textAlign: "center" }}>
+        <div
+          style={{
+            maxWidth: 520,
+            margin: "0 auto",
+            background: "#ffffff",
+            padding: "2.5rem 2rem",
+            borderRadius: "16px",
+            border: "1.5px solid #fee2e2",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ fontSize: "3.5rem", marginBottom: "1rem" }}>🚫</div>
+          <h2 style={{ color: "#991b1b", marginBottom: "0.5rem", fontSize: "1.5rem", fontWeight: 800 }}>
+            Customer Access Restricted
+          </h2>
+          <p style={{ color: "#475569", fontSize: "0.95rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
+            You are logged in with Customer profile <strong>{user.email}</strong>. Customers do not have permission to view or manipulate confidential vendor operational records, KYC agreements, bank accounts, or lead wallets.
+          </p>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onSwitchToMarketplace}
+            style={{ padding: "0.65rem 1.5rem", fontSize: "0.9rem" }}
+          >
+            ← Return to Marketplace
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [activeTab, setActiveTab] = useState("overview");
   const [lang, setLang] = useState("en");
   const t = LABELS[lang] || LABELS.en;
@@ -86,7 +126,7 @@ export default function VendorDashboard({ onSwitchToMarketplace }) {
   });
 
   const [profileForm, setProfileForm] = useState({
-    businessName: "Sunset Royal Caterers & Events",
+    businessName: activeVendorName,
     location: "SG Highway, Ahmedabad",
     address: "Plot 42, SG Highway, Bodakdev, Ahmedabad 380054",
     latitude: 23.0415,
@@ -97,7 +137,7 @@ export default function VendorDashboard({ onSwitchToMarketplace }) {
 
   const [kycInputs, setKycInputs] = useState({
     aadhaarLast4: "4821",
-    verifiedName: "Rajeshbhai Patel",
+    verifiedName: activeVendorName,
     panNumber: "ABCDE1234F",
     accountNumber: "50100234984412",
     ifscCode: "HDFC0000123",
@@ -117,17 +157,17 @@ export default function VendorDashboard({ onSwitchToMarketplace }) {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    fetchKycStatus(VENDOR_ID)
+    fetchKycStatus(activeVendorId)
       .then((res) => {
         if (res) setKycState(res);
       })
       .catch(() => {});
-    fetchVendorWallet(VENDOR_ID)
+    fetchVendorWallet(activeVendorId)
       .then((res) => {
         if (res) setWallet(res);
       })
       .catch(() => {});
-  }, []);
+  }, [activeVendorId]);
 
   const handleBookingAction = (id, accepted) => {
     setBookingRequests((prev) =>
@@ -241,7 +281,15 @@ export default function VendorDashboard({ onSwitchToMarketplace }) {
       {/* Portal Top Bar */}
       <div className="vendor-portal-header">
         <div className="vendor-profile-info">
-          <div className="vendor-avatar">SR</div>
+          <div className="vendor-avatar">
+            {(profileForm.businessName || "VP")
+              .split(" ")
+              .filter(Boolean)
+              .map((w) => w[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase()}
+          </div>
           <div>
             <div className="vendor-title-row">
               <h2>{profileForm.businessName}</h2>
@@ -586,9 +634,9 @@ export default function VendorDashboard({ onSwitchToMarketplace }) {
           </div>
         )}
 
-        {activeTab === "gallery" && <VendorGallery vendorId={VENDOR_ID} />}
-        {activeTab === "packages" && <VendorPackages vendorId={VENDOR_ID} />}
-        {activeTab === "calendar" && <VendorCalendar vendorId={VENDOR_ID} />}
+        {activeTab === "gallery" && <VendorGallery vendorId={activeVendorId} />}
+        {activeTab === "packages" && <VendorPackages vendorId={activeVendorId} />}
+        {activeTab === "calendar" && <VendorCalendar vendorId={activeVendorId} />}
 
         {activeTab === "wallet" && (
           <div className="vendor-section-card space-y-6">

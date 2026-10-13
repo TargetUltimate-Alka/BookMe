@@ -73,6 +73,7 @@ const PROTECTED_VIEWS = [
 
 function AppContent() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const activeRole = user?.role || "customer";
 
   // Navigation State
   const [currentView, setCurrentView] = useState(() => {
@@ -201,10 +202,10 @@ function AppContent() {
         return;
       }
 
-      // If user signed in from auth view: REDIRECT TO THEIR OWN PROFILE!
+      // If user signed in from auth view: REDIRECT TO THEIR ROLE HOME!
       if (currentView === "auth") {
         if (user.role === "vendor") {
-          navigateTo("profile", { role: "vendor" }, true);
+          navigateTo("vendor-portal", {}, true);
         } else if (user.role === "admin") {
           navigateTo("admin-bookings", {}, true);
         } else {
@@ -215,12 +216,17 @@ function AppContent() {
     }
   }, [user, currentView, pendingBookingIntent, navigateTo]);
 
-  // Protected Routes Guard: if signed out user tries to view private page, redirect to marketplace
+  // Protected Routes & RBAC Guard:
+  // 1. Signed out user accessing private views -> marketplace
+  // 2. Customer user accessing vendor operational portal -> profile with security protection
   useEffect(() => {
     if (!isLoading && !isAuthenticated && PROTECTED_VIEWS.includes(currentView)) {
       navigateTo("marketplace", {}, true);
     }
-  }, [isLoading, isAuthenticated, currentView, navigateTo]);
+    if (isAuthenticated && activeRole === "customer" && (currentView === "vendor-portal" || currentView === "vendor-requests" || currentView === "vendor-request-details")) {
+      navigateTo("profile", {}, true);
+    }
+  }, [isLoading, isAuthenticated, activeRole, currentView, navigateTo]);
 
   // Complete sign-out and session invalidation
   const handleLogout = async () => {
@@ -413,7 +419,6 @@ function AppContent() {
   }
 
   // 4. Authenticated Application Shell (Customer Events, Bookings, User Profile, Vendor Portal, Admin Oversight)
-  const activeRole = user?.role || "customer";
 
   return (
     <div className="page-shell">
@@ -753,7 +758,7 @@ function AppContent() {
         {currentView === "discover" && (
           <VendorDiscovery
             onSelectVendor={(v) => handleBookNow(v)}
-            onOpenVendorPortal={() => navigateTo("vendor-portal")}
+            onOpenVendorPortal={activeRole === "vendor" || activeRole === "admin" ? () => navigateTo("vendor-portal") : null}
           />
         )}
       </main>

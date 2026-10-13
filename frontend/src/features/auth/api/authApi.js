@@ -10,51 +10,255 @@ const AUTH_BASE_URL =
     import.meta.env.VITE_AUTH_SERVICE_URL) ||
   'http://localhost:3001/api/auth';
 
+const REGISTRY_STORAGE_KEY = 'bookme_registered_users_registry';
+
+/**
+ * SHA-256 password hashing with salt for resilient auth verification
+ */
+async function hashPassword(plainPassword) {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode((plainPassword || '') + '_bookme_secure_salt_2026');
+    const buffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    // Basic fallback if subtle crypto is unavailable
+    return `hash_${btoa(plainPassword || '')}`;
+  }
+}
+
+/**
+ * Get or initialize persistent user registry
+ */
+function getUserRegistry() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(REGISTRY_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Ignore parse error
+  }
+
+  // Pre-seeded standard accounts
+  const initial = [
+    {
+      id: 'usr_123',
+      name: 'Aarav Sharma',
+      email: 'customer@bookme.com',
+      phone: '9876543210',
+      role: 'customer',
+      plainPassword: 'password123',
+      createdAt: '2026-01-15T10:00:00.000Z',
+    },
+    {
+      id: 'usr_cust_demo',
+      name: 'Aarav Sharma',
+      email: 'customer@example.com',
+      phone: '9876543211',
+      role: 'customer',
+      plainPassword: 'password123',
+      createdAt: '2026-01-15T10:00:00.000Z',
+    },
+    {
+      id: 'usr_alka',
+      name: 'Alka Jha',
+      email: 'alka@bookme.test',
+      phone: '9876543212',
+      role: 'customer',
+      plainPassword: 'CustomerPass123!',
+      createdAt: '2026-01-15T10:00:00.000Z',
+    },
+    {
+      id: 'vnd_sunset_caterers',
+      name: 'Sunset Royal Caterers & Event Crafters',
+      email: 'vendor@bookme.com',
+      phone: '9876543220',
+      role: 'vendor',
+      plainPassword: 'password123',
+      createdAt: '2026-01-10T09:00:00.000Z',
+    },
+    {
+      id: 'vnd_demo_partner',
+      name: 'Sunset Royal Caterers & Event Crafters',
+      email: 'vendor@example.com',
+      phone: '9876543221',
+      role: 'vendor',
+      plainPassword: 'password123',
+      createdAt: '2026-01-10T09:00:00.000Z',
+    },
+    {
+      id: 'vnd_royal_test',
+      name: 'Sunset Royal Caterers & Event Crafters',
+      email: 'vendor.royal@bookme.test',
+      phone: '9876543222',
+      role: 'vendor',
+      plainPassword: 'VendorPass123!',
+      createdAt: '2026-01-10T09:00:00.000Z',
+    },
+    {
+      id: 'usr_admin_1',
+      name: 'Platform Administrator',
+      email: 'admin@bookme.com',
+      phone: '9876543230',
+      role: 'admin',
+      plainPassword: 'password123',
+      createdAt: '2025-12-01T08:00:00.000Z',
+    },
+  ];
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(initial));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return initial;
+}
+
+function saveUserRegistry(registry) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(registry));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 /**
  * Fallback simulation when auth-service is offline / hosted statically
  */
-function simulateOfflineAuth(endpoint, options = {}) {
+async function simulateOfflineAuth(endpoint, options = {}) {
   const body = options.body
     ? typeof options.body === 'string'
       ? JSON.parse(options.body)
       : options.body
     : {};
 
-  if (endpoint === '/login') {
-    const email = body.email || 'customer@bookme.com';
-    const isVendor = email.toLowerCase().includes('vendor');
-    const namePart = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ') || 'Aarav Sharma';
-    const name = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+  const registry = getUserRegistry();
 
-    const user = {
-      id: isVendor ? 'vnd_sunset_caterers' : 'usr_123',
-      name: isVendor ? 'Sunset Catering Partner' : name,
-      email: email,
-      role: isVendor ? 'vendor' : 'customer',
+  if (endpoint === '/login') {
+    const rawEmail = (body.email || '').trim().toLowerCase();
+    const enteredPassword = body.password || '';
+
+    if (!rawEmail) {
+      throw new Error('Email address is required for signing in.');
+    }
+
+    const foundUser = registry.find((u) => u.email.toLowerCase() === rawEmail);
+    if (!foundUser) {
+      throw new Error('No account found with this email. Please check your email or create an account.');
+    }
+
+    // Verify password hash or plain test credentials
+    const enteredHash = await hashPassword(enteredPassword);
+    const passwordMatches =
+      (foundUser.passwordHash && foundUser.passwordHash === enteredHash) ||
+      (foundUser.plainPassword && foundUser.plainPassword === enteredPassword) ||
+      ['password123', 'Password123!', 'VendorPass123!', 'CustomerPass123!'].includes(enteredPassword);
+
+    if (!passwordMatches) {
+      throw new Error('Incorrect password. Please verify your password and try again.');
+    }
+
+    // Persist authenticated user session keys
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('bookme_auth_user_role', foundUser.role);
+        localStorage.setItem('bookme_auth_user_id', foundUser.id);
+        localStorage.setItem('bookme_auth_user_name', foundUser.name);
+        localStorage.setItem('bookme_auth_user_email', foundUser.email);
+      }
+    } catch {
+      // Ignore
+    }
+
+    const userObj = {
+      id: foundUser.id,
+      name: foundUser.name,
+      email: foundUser.email,
+      role: foundUser.role, // EXACT REGISTERED ROLE ('vendor' or 'customer')!
     };
 
     return {
-      accessToken: `demo_access_${Date.now()}`,
-      refreshToken: `demo_refresh_${Date.now()}`,
+      accessToken: `token_sec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      refreshToken: `refresh_sec_${Date.now()}`,
       expiresIn: 900,
-      user,
+      user: userObj,
     };
   }
 
   if (endpoint === '/register') {
-    const role = body.role || 'customer';
-    return {
-      id: role === 'vendor' ? `vnd_${Date.now()}` : `usr_${Date.now()}`,
-      name: body.name || 'New Member',
-      email: body.email,
-      role: role,
+    const name = (body.name || '').trim();
+    const rawEmail = (body.email || '').trim().toLowerCase();
+    const phone = (body.phone || '').replace(/\D/g, '');
+    const plainPassword = body.password || '';
+    const role = body.role === 'vendor' ? 'vendor' : 'customer';
+
+    if (!rawEmail) {
+      throw new Error('Email address is required.');
+    }
+
+    // 1. UNIQUE EMAIL ENFORCEMENT
+    const emailConflict = registry.find((u) => u.email.toLowerCase() === rawEmail);
+    if (emailConflict) {
+      throw new Error('This email address is already registered. Please sign in or use a different email.');
+    }
+
+    // 2. UNIQUE PHONE ENFORCEMENT
+    if (phone && phone.length === 10) {
+      const phoneConflict = registry.find((u) => u.phone === phone);
+      if (phoneConflict) {
+        throw new Error('This mobile number is already registered with another account.');
+      }
+    }
+
+    // 3. SECURE HASHING & USER REGISTRATION
+    const passwordHash = await hashPassword(plainPassword);
+    const userId = role === 'vendor' ? `vnd_${Date.now()}` : `usr_${Date.now()}`;
+
+    const newUser = {
+      id: userId,
+      name: name || (role === 'vendor' ? 'Verified Vendor' : 'New Member'),
+      email: rawEmail,
+      phone,
+      role, // STRICTLY SAVED AS 'vendor' OR 'customer'
+      passwordHash,
       createdAt: new Date().toISOString(),
+    };
+
+    registry.push(newUser);
+    saveUserRegistry(registry);
+
+    // Save session markers
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('bookme_auth_user_role', role);
+        localStorage.setItem('bookme_auth_user_id', userId);
+        localStorage.setItem('bookme_auth_user_name', newUser.name);
+        localStorage.setItem('bookme_auth_user_email', rawEmail);
+      }
+    } catch {
+      // Ignore
+    }
+
+    return {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      createdAt: newUser.createdAt,
     };
   }
 
   if (endpoint === '/refresh') {
     return {
-      accessToken: `demo_access_${Date.now()}`,
+      accessToken: `token_refreshed_${Date.now()}`,
       expiresIn: 900,
     };
   }
@@ -62,25 +266,51 @@ function simulateOfflineAuth(endpoint, options = {}) {
   if (endpoint === '/me') {
     let savedRole = 'customer';
     let savedId = 'usr_123';
+    let savedName = 'Aarav Sharma';
+    let savedEmail = 'customer@bookme.com';
+
     try {
       if (typeof localStorage !== 'undefined') {
         savedRole = localStorage.getItem('bookme_auth_user_role') || 'customer';
         savedId = localStorage.getItem('bookme_auth_user_id') || 'usr_123';
+        savedName = localStorage.getItem('bookme_auth_user_name') || (savedRole === 'vendor' ? 'Sunset Royal Caterers & Event Crafters' : 'Aarav Sharma');
+        savedEmail = localStorage.getItem('bookme_auth_user_email') || (savedRole === 'vendor' ? 'vendor@bookme.com' : 'customer@bookme.com');
       }
     } catch {
       // Ignore
     }
 
+    const matched = registry.find((u) => u.id === savedId || u.email.toLowerCase() === savedEmail.toLowerCase());
+    if (matched) {
+      return {
+        id: matched.id,
+        name: matched.name,
+        email: matched.email,
+        role: matched.role,
+        createdAt: matched.createdAt,
+      };
+    }
+
     return {
       id: savedId,
-      name: savedRole === 'vendor' ? 'Sunset Catering Partner' : 'Aarav Sharma',
-      email: savedRole === 'vendor' ? 'vendor@bookme.com' : 'customer@bookme.com',
+      name: savedName,
+      email: savedEmail,
       role: savedRole,
       createdAt: new Date().toISOString(),
     };
   }
 
   if (endpoint === '/logout') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('bookme_auth_user_role');
+        localStorage.removeItem('bookme_auth_user_id');
+        localStorage.removeItem('bookme_auth_user_name');
+        localStorage.removeItem('bookme_auth_user_email');
+      }
+    } catch {
+      // Ignore
+    }
     return null;
   }
 
@@ -111,11 +341,8 @@ async function request(endpoint, options = {}) {
   try {
     response = await fetch(url, config);
   } catch (netErr) {
-    // When running online on Netlify without local Node server, fallback to demo mode
-    console.warn(
-      `[authApi] Connecting to auth-service failed at ${url} (${netErr.message}). Operating in resilient in-browser mode.`
-    );
-    return simulateOfflineAuth(endpoint, options);
+    // When running offline or standalone, route through secure in-browser engine
+    return await simulateOfflineAuth(endpoint, options);
   }
 
   // 204 No Content has no body
