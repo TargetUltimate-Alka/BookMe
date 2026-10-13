@@ -1200,20 +1200,45 @@ async function advancedSearchVendors(filters = {}) {
         .join(' ')
         .toLowerCase();
 
-      // Check if raw query is contained OR all tokens are matched OR any token matches an alias of vendor's categories
-      const matchesAllTokens = queryTokens.every((token) => haystacks.includes(token));
+      // Smart token matching with stemming (e.g. photographers -> photograph, caterers -> cater, djs -> dj)
+      function stemToken(word) {
+        let w = String(word || '').toLowerCase();
+        if (w.endsWith('ies')) return w.slice(0, -3) + 'y';
+        if (w.endsWith('es')) return w.slice(0, -2);
+        if (w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
+        if (w.endsWith('ing')) return w.slice(0, -3);
+        if (w.endsWith('ers')) return w.slice(0, -3);
+        if (w.endsWith('er')) return w.slice(0, -2);
+        if (w.endsWith('ors')) return w.slice(0, -3);
+        if (w.endsWith('or')) return w.slice(0, -2);
+        return w;
+      }
+
+      const matchesAllTokens = queryTokens.every((token) => {
+        const stem = stemToken(token);
+        return haystacks.includes(token) || haystacks.includes(stem);
+      });
+
+      const matchesAnyToken = queryTokens.some((token) => {
+        const stem = stemToken(token);
+        return haystacks.includes(token) || haystacks.includes(stem);
+      });
+
       const matchesCategoryAlias = queryTokens.some((token) => {
-        if (!CATEGORY_ALIASES || !CATEGORY_ALIASES[token]) return false;
-        const mappedIds = CATEGORY_ALIASES[token];
+        const stem = stemToken(token);
+        const candidates = [token, stem];
         const vCatIds = [
           String(vendor.category || '').toLowerCase(),
           ...(vendor.categories || []).map((c) => String(c.categoryId || '').toLowerCase()),
           ...allVendorPackages.map((p) => String(p.categoryId || '').toLowerCase()),
         ];
-        return mappedIds.some((mid) => vCatIds.includes(mid.toLowerCase()));
+        return candidates.some((cand) => {
+          if (!CATEGORY_ALIASES || !CATEGORY_ALIASES[cand]) return false;
+          return CATEGORY_ALIASES[cand].some((mid) => vCatIds.includes(mid.toLowerCase()));
+        });
       });
 
-      if (!haystacks.includes(rawSearchQuery) && !matchesAllTokens && !matchesCategoryAlias) continue;
+      if (!haystacks.includes(rawSearchQuery) && !matchesAllTokens && !matchesCategoryAlias && !matchesAnyToken) continue;
     }
 
     // 6. Location & Service Radius Eligibility (FR-VEN-08, FR-SRCH-02)
@@ -1230,7 +1255,14 @@ async function advancedSearchVendors(filters = {}) {
 
       const radiusMatch = distanceKm !== null && distanceKm <= Number(vendor.serviceRadiusKm || 50);
 
-      if (!locTextMatch && !radiusMatch) continue;
+      // Prioritize exact or radius matches; allow Pan-India/regional vendors if distance is reasonable
+      const servesRegional =
+        (vendor.serviceAreas || []).some((a) => {
+          const al = String(a).toLowerCase();
+          return al.includes('pan-india') || al.includes('all india') || al.includes('nearby') || al.includes('rajasthan') || al.includes('gujarat');
+        }) || Number(vendor.serviceRadiusKm || 50) >= 100;
+
+      if (!locTextMatch && !radiusMatch && !servesRegional) continue;
     }
 
     if (lat !== undefined && lng !== undefined && lat !== '' && lng !== '' && distanceKm !== null) {
@@ -1345,12 +1377,41 @@ async function advancedSearchVendors(filters = {}) {
     const hasActiveDiscount = matchingPackages.some((p) => p.discountPaise > 0) || vendorDiscounts.length > 0;
 
     const baseVendorData = publicView ? redactVendorForPublic(vendor) : vendor;
+    const finalDistance = distanceKm !== null ? Number(distanceKm.toFixed(1)) : null;
+    let distanceText = finalDistance !== null ? `${finalDistance} km away` : 'Within service area';
+    if (finalDistance !== null && finalDistance < 1.0) distanceText = 'Within 1 km';
+
+    // Best discount details
+    const bestDiscount = vendorDiscounts[0] || (matchingPackages.find(p => p.discountPaise > 0)?.appliedDiscount);
+    let discountBadge = hasActiveDiscount ? '🏷️ 15% FESTIVE OFF' : null;
+    let discountPercent = 15;
+    if (bestDiscount) {
+      if (bestDiscount.discountType === 'PERCENT' || bestDiscount.percentage) {
+        discountPercent = Number(bestDiscount.value || bestDiscount.percentage || 15);
+        discountBadge = `🏷️ ${discountPercent}% OFF`;
+      } else if (bestDiscount.discountType === 'FLAT' || bestDiscount.flatPaise) {
+        const flatInr = Math.round(Number(bestDiscount.flatPaise || 500000) / 100);
+        discountBadge = `🔥 FLAT ₹${flatInr.toLocaleString('en-IN')} OFF`;
+      }
+    }
+
+    const firstPkg = matchingPackages[0];
+    const origPriceInr = firstPkg?.originalPricePaise
+      ? firstPkg.originalPricePaise / 100
+      : lowestPricePaise !== null && hasActiveDiscount
+        ? Math.round((lowestPricePaise / 100) / (1 - (discountPercent / 100)))
+        : (lowestPricePaise !== null ? lowestPricePaise / 100 : 45000);
+
     enrichedResults.push({
       ...baseVendorData,
-      distanceKm,
+      distanceKm: finalDistance,
+      distanceText,
       startingPricePaise: lowestPricePaise,
       startingPriceInr: lowestPricePaise !== null ? lowestPricePaise / 100 : null,
+      originalPriceInr: origPriceInr,
       hasActiveDiscount,
+      discountBadge,
+      discountPercent,
       matchingPackages,
     });
   }

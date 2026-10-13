@@ -727,34 +727,44 @@
 
 .category-tile {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid #e2e8f0;
   border-radius: 16px;
-  padding: 18px 10px 14px;
+  padding: 16px 8px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+  user-select: none;
 }
 
 .category-tile:hover {
-  transform: translateY(-4px);
-  border-color: #a5b4fc;
-  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.12);
+  transform: translateY(-4px) scale(1.02);
+  border-color: #6366f1;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.14);
+}
+
+.category-tile:active {
+  transform: scale(0.96);
 }
 
 .category-tile.active {
   background: #eef2ff;
   border-color: #4f46e5;
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.2);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.22), 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
 .category-tile-icon {
-  font-size: 2.25rem;
-  margin-bottom: 10px;
+  font-size: clamp(1.8rem, 3.5vw, 2.3rem);
+  margin-bottom: 8px;
+  transition: transform 0.2s ease;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.category-tile:hover .category-tile-icon {
+  transform: scale(1.12);
 }
 
 .category-tile-name {
@@ -1033,10 +1043,30 @@
 .vendor-card-location {
   display: flex;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
   font-size: 0.75rem;
   color: #64748b;
   margin-bottom: 10px;
+}
+
+.vendor-loc-text {
+  font-weight: 500;
+  color: #475569;
+}
+
+.vendor-distance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  white-space: nowrap;
 }
 
 .vendor-card-desc {
@@ -1065,6 +1095,13 @@
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 6px;
+}
+
+.vendor-tag-item.discount-highlight {
+  background: #fef3c7;
+  border-color: #fde047;
+  color: #92400e;
+  font-weight: 750;
 }
 
 .vendor-card-price-action-row {
@@ -1103,6 +1140,20 @@
   font-size: 1.15rem;
   font-weight: 800;
   color: #0f172a;
+}
+
+.vendor-savings-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+  margin-left: 6px;
 }
 
 .vendor-card-actions {
@@ -1345,6 +1396,24 @@
   .hero-form-row {
     grid-template-columns: 1fr;
   }
+  .category-tiles-grid {
+    grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+    gap: 10px;
+  }
+  .category-tile {
+    padding: 12px 6px 10px;
+    border-radius: 12px;
+  }
+  .category-tile-icon {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+  }
+  .category-tile-name {
+    font-size: 0.75rem;
+  }
+  .category-tile-count {
+    font-size: 0.625rem;
+  }
   .vendor-cards-grid {
     grid-template-columns: 1fr;
   }
@@ -1359,5 +1428,21 @@
   }
   #mobile-menu-toggle {
     display: flex !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .category-tiles-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .category-tile {
+    padding: 10px 4px 8px;
+  }
+  .category-tile-icon {
+    font-size: 1.55rem;
+  }
+  .category-tile-name {
+    font-size: 0.6875rem;
   }
 }

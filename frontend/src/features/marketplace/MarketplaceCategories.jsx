@@ -118,7 +118,7 @@ export function MarketplaceCategories({ selectedCategory, onSelectCategory }) {
           )}
         </div>
 
-        <div className="category-tiles-grid">
+        <div className="category-tiles-grid" role="group" aria-label="Event service categories">
           {SUPPORTED_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.id;
             return (
@@ -126,11 +126,18 @@ export function MarketplaceCategories({ selectedCategory, onSelectCategory }) {
                 key={cat.id}
                 className={`category-tile ${isSelected ? "active" : ""}`}
                 onClick={() => onSelectCategory(cat.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectCategory(cat.id);
+                  }
+                }}
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSelected}
+                aria-label={`Select ${cat.name} category`}
               >
-                <div className="category-tile-icon">{cat.icon}</div>
+                <div className="category-tile-icon" aria-hidden="true">{cat.icon}</div>
                 <div className="category-tile-name">{cat.name}</div>
                 {cat.count && <div className="category-tile-count">{cat.count}</div>}
               </div>

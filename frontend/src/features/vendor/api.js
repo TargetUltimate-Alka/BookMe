@@ -3,14 +3,17 @@
  * Connects React UI to Express backend running on http://localhost:3002
  */
 
-export const API_ROOT_URL =
-  (typeof process !== 'undefined' && process.env?.REACT_APP_VENDOR_ROOT_URL) ||
-  'http://localhost:3002/api';
+const ENV_ROOT =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VENDOR_ROOT_URL) ||
+  (typeof process !== 'undefined' && process.env?.REACT_APP_VENDOR_ROOT_URL);
 
-export const API_BASE_URL =
-  (typeof process !== 'undefined' && process.env?.REACT_APP_VENDOR_API_URL) ||
-  'http://localhost:3002/api/vendors';
+const ENV_API =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VENDOR_API_URL) ||
+  (typeof process !== 'undefined' && process.env?.REACT_APP_VENDOR_API_URL);
 
+export const API_ROOT_URL = ENV_ROOT || '/api';
+export const API_BASE_URL = ENV_API || '/api/vendors';
+export const DIRECT_BACKEND_URL = 'http://localhost:3002/api/vendors';
 export const HEALTH_URL = 'http://localhost:3002/health';
 
 function buildHeaders(extraHeaders = {}) {
@@ -30,11 +33,17 @@ function buildHeaders(extraHeaders = {}) {
 export async function checkBackendHealth() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(HEALTH_URL, { signal: controller.signal });
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    // Try proxy endpoint first, fallback to direct port 3002
+    let res = null;
+    try {
+      res = await fetch('/api/vendors?limit=1', { signal: controller.signal });
+    } catch {
+      res = await fetch(HEALTH_URL, { signal: controller.signal });
+    }
     clearTimeout(timeoutId);
-    return res.ok;
-  } catch (e) {
+    return Boolean(res && res.ok);
+  } catch {
     return false;
   }
 }
@@ -61,10 +70,25 @@ export async function fetchVendors(params = {}) {
     }
   });
 
-  const url = `${API_BASE_URL}${query.toString() ? `?${query.toString()}` : ''}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch vendors: ${res.statusText}`);
-  return await res.json();
+  const queryStr = query.toString() ? `?${query.toString()}` : '';
+  const url = `${API_BASE_URL}${queryStr}`;
+
+  try {
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+  } catch (err) {
+    // Try direct backend url if proxy or relative path fails
+    try {
+      const directUrl = `${DIRECT_BACKEND_URL}${queryStr}`;
+      const directRes = await fetch(directUrl);
+      if (directRes.ok) return await directRes.json();
+    } catch {
+      // Both network calls failed
+    }
+    throw err;
+  }
+
+  throw new Error('Failed to fetch vendors');
 }
 
 /**

@@ -279,6 +279,15 @@ const CATEGORY_ALIASES = {
   'security': ['cat_58_security_staff', 'cat_parent_planning'],
   'fireworks': ['cat_60_fireworks_special_effects', 'cat_parent_planning'],
   'pyro': ['cat_60_fireworks_special_effects', 'cat_parent_planning'],
+
+  // Choreography, Emcee & Entertainment
+  'choreography': ['cat_26_live_band', 'cat_54_event_coordinator', 'cat_parent_music'],
+  'choreography & emcee': ['cat_26_live_band', 'cat_54_event_coordinator', 'cat_parent_music'],
+  'choreographer': ['cat_26_live_band', 'cat_54_event_coordinator', 'cat_parent_music'],
+  'emcee': ['cat_54_event_coordinator', 'cat_parent_music'],
+  'anchor': ['cat_54_event_coordinator', 'cat_parent_music'],
+  'dance': ['cat_26_live_band', 'cat_parent_music'],
+  'sangeet choreographer': ['cat_26_live_band', 'cat_parent_music'],
 };
 
 const ALL_CATEGORIES = [...PARENT_CATEGORIES, ...SERVICE_CATEGORIES];

@@ -29,6 +29,7 @@ const POPULAR_SEARCHES = [
 export function MarketplaceHeader({
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   selectedLocation,
   onLocationChange,
   user,
@@ -188,9 +189,20 @@ export function MarketplaceHeader({
         {/* Search Bar with Autocomplete & Smart Suggestions */}
         <div className="marketplace-search-wrap" ref={searchWrapRef}>
           <div className="marketplace-search-input-box">
-            <span style={{ color: isSearchFocused ? "#4f46e5" : "#94a3b8", fontSize: "1rem", marginRight: 6, transition: "color 0.2s" }}>
-              🔍
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchFocused(false);
+                if (onSearchSubmit) onSearchSubmit(searchQuery);
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+              title="Search vendors"
+              aria-label="Submit search"
+            >
+              <span style={{ color: isSearchFocused ? "#4f46e5" : "#94a3b8", fontSize: "1rem", marginRight: 6, transition: "color 0.2s" }}>
+                🔍
+              </span>
+            </button>
             <input
               type="text"
               className="marketplace-search-input"
@@ -206,6 +218,7 @@ export function MarketplaceHeader({
                   setIsSearchFocused(false);
                 } else if (e.key === "Enter") {
                   setIsSearchFocused(false);
+                  if (onSearchSubmit) onSearchSubmit(searchQuery);
                 }
               }}
               aria-label="Search vendor or service"
@@ -246,6 +259,7 @@ export function MarketplaceHeader({
                         if (onSelectCategory) onSelectCategory(cat.id);
                         onSearchChange(cat.id);
                         setIsSearchFocused(false);
+                        if (onSearchSubmit) onSearchSubmit(cat.id);
                       }}
                     >
                       <span>{cat.icon}</span>
@@ -270,6 +284,7 @@ export function MarketplaceHeader({
                         onSearchChange(item.text);
                         if (onSelectCategory) onSelectCategory(item.category);
                         setIsSearchFocused(false);
+                        if (onSearchSubmit) onSearchSubmit(item.text);
                       }}
                     >
                       <div className="search-suggestion-left">

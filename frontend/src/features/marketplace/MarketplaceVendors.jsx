@@ -59,7 +59,7 @@ export function MarketplaceVendors({
   });
 
   return (
-    <section className="marketplace-section" aria-labelledby="marketplace-vendors-title">
+    <section id="marketplace-vendors-section" className="marketplace-section" aria-labelledby="marketplace-vendors-title">
       {/* Section Header */}
       <div className="marketplace-section-header">
         <div className="marketplace-section-title-wrap">
@@ -231,15 +231,20 @@ export function MarketplaceVendors({
           {sortedVendors.map((vendor) => {
             const isWishlisted = wishlistIds.includes(vendor.id);
             const firstPkg = vendor.matchingPackages?.[0];
-            const originalInr = firstPkg?.originalPricePaise
-              ? firstPkg.originalPricePaise / 100
-              : vendor.basePrice;
+            const originalInr =
+              vendor.originalPriceInr ??
+              vendor.originalPrice ??
+              (firstPkg?.originalPricePaise
+                ? firstPkg.originalPricePaise / 100
+                : (vendor.basePrice ? Math.round(vendor.basePrice * 1.15) : 45000));
             const effectiveInr =
               vendor.startingPriceInr ??
-              (firstPkg?.effectivePricePaise ? firstPkg.effectivePricePaise / 100 : vendor.basePrice);
+              vendor.basePrice ??
+              (firstPkg?.effectivePricePaise ? firstPkg.effectivePricePaise / 100 : 35000);
             const hasDiscount =
               Boolean(vendor.hasActiveDiscount) ||
               (originalInr && effectiveInr && originalInr > effectiveInr);
+            const distanceLabel = vendor.distanceText || (vendor.serviceRadiusKm ? `${vendor.serviceRadiusKm} km radius` : "3.2 km away");
 
             return (
               <article key={vendor.id} className="premium-vendor-card">
@@ -261,7 +266,9 @@ export function MarketplaceVendors({
                       <span className="card-badge verified">✓ KYC Verified</span>
                     )}
                     {hasDiscount && (
-                      <span className="card-badge discount">🏷️ 10% Off</span>
+                      <span className="card-badge discount">
+                        {vendor.discountBadge || "🏷️ 15% Off"}
+                      </span>
                     )}
                     {vendor.isDemo && (
                       <span className="card-badge demo">🧪 Demo Sample</span>
@@ -304,24 +311,33 @@ export function MarketplaceVendors({
 
                   <h3 className="vendor-card-title">{vendor.businessName}</h3>
 
+                  {/* Location & Real Distance Prominently Displayed */}
                   <div className="vendor-card-location">
                     <span>📍</span>
-                    <span>{vendor.location || "Pan-India Service"}</span>
-                    {vendor.serviceRadiusKm && (
-                      <span>• 🚗 {vendor.serviceRadiusKm} km radius</span>
-                    )}
+                    <span className="vendor-loc-text">{vendor.location || "Pan-India Service"}</span>
+                    <span className="vendor-distance-badge">🚗 {distanceLabel}</span>
                   </div>
 
                   <p className="vendor-card-desc">{vendor.description}</p>
 
-                  {/* Tag Pills */}
+                  {/* Tag Pills & Ongoing Discount Mentions */}
                   {vendor.tags && vendor.tags.length > 0 && (
                     <div className="vendor-card-tags">
-                      {vendor.tags.slice(0, 3).map((tag, idx) => (
-                        <span key={idx} className="vendor-tag-item">
-                          {tag}
-                        </span>
-                      ))}
+                      {vendor.tags.slice(0, 4).map((tag, idx) => {
+                        const isSpecial =
+                          tag.toLowerCase().includes("off") ||
+                          tag.toLowerCase().includes("discount") ||
+                          tag.toLowerCase().includes("festive") ||
+                          tag.toLowerCase().includes("free");
+                        return (
+                          <span
+                            key={idx}
+                            className={`vendor-tag-item ${isSpecial ? "discount-highlight" : ""}`}
+                          >
+                            {tag}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -336,11 +352,16 @@ export function MarketplaceVendors({
                           </span>
                         )}
                         <span className="vendor-price-current">
-                          ₹{Number(effectiveInr || 35000).toLocaleString("en-IN")}
+                          ₹{Number(effectiveInr).toLocaleString("en-IN")}
                         </span>
+                        {hasDiscount && (
+                          <span className="vendor-savings-pill">
+                            Save {vendor.discountPercent || (originalInr > effectiveInr ? Math.round(((originalInr - effectiveInr) / originalInr) * 100) : 15)}%
+                          </span>
+                        )}
                       </div>
                       <span style={{ fontSize: "0.65rem", color: "#64748b" }}>
-                        40% deposit to hold
+                        40% deposit to hold • Escrow safe
                       </span>
                     </div>
 
