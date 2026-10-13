@@ -249,7 +249,12 @@ export function MarketplaceVendors({
             return (
               <article key={vendor.id} className="premium-vendor-card">
                 {/* Media Section */}
-                <div className="vendor-card-media">
+                <div
+                  className="vendor-card-media"
+                  onClick={() => onViewDetails(vendor)}
+                  style={{ cursor: "pointer" }}
+                  title="Click to view full portfolio"
+                >
                   <img
                     src={
                       vendor.coverImage ||
@@ -263,7 +268,7 @@ export function MarketplaceVendors({
                   {/* Badges */}
                   <div className="vendor-card-top-badges">
                     {vendor.verified && (
-                      <span className="card-badge verified">✓ KYC Verified</span>
+                      <span className="card-badge verified">🛡️ Verified Pro</span>
                     )}
                     {hasDiscount && (
                       <span className="card-badge discount">
@@ -360,28 +365,28 @@ export function MarketplaceVendors({
                           </span>
                         )}
                       </div>
-                      <span style={{ fontSize: "0.65rem", color: "#64748b" }}>
-                        40% deposit to hold • Escrow safe
+                      <span className="vendor-escrow-hint">
+                        🔒 40% escrow hold • Free reschedule
                       </span>
                     </div>
 
                     <div className="vendor-card-actions">
                       <button
                         type="button"
-                        className="vendor-view-btn"
+                        className="vendor-quick-view-btn"
                         onClick={() => onViewDetails(vendor)}
-                        title="View portfolio, full packages & reviews"
+                        title="View portfolio, all packages & reviews"
                       >
-                        View 👁️
+                        Quick View
                       </button>
                       <button
                         type="button"
-                        className="vendor-book-btn"
+                        className="vendor-check-avail-btn"
                         onClick={() => onBookNow(vendor)}
-                        title="Request booking with this vendor"
+                        title="Check availability and request booking"
                       >
-                        <span>Book</span>
-                        <span>⚡</span>
+                        <span>Check Availability</span>
+                        <span className="btn-lightning">⚡</span>
                       </button>
                     </div>
                   </div>

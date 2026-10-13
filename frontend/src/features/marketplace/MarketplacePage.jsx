@@ -960,6 +960,12 @@ export function MarketplacePage({
 
       {/* Hero Section */}
       <MarketplaceHero
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onKeywordSearchSubmit={(q) => {
+          setSearchQuery(q);
+          scrollToVendors();
+        }}
         selectedLocation={selectedLocation}
         onLocationChange={setSelectedLocation}
         onSearchSubmit={({ eventType, location }) => {
