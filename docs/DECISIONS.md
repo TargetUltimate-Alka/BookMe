@@ -114,3 +114,50 @@
   - Refresh tokens are stored ONLY as SHA-256 hashes in `refresh_tokens.token_hash`.
   - Every token belongs to a `family_id`. When `/auth/refresh` is called with a valid token, the token is revoked and a new access token is returned.
   - If a refresh token that was ALREADY revoked is presented, a token reuse attack is detected: the entire token family is revoked immediately (`WHERE family_id = $1`), terminating all active sessions for that user.
+
+### ADR-016: Complete 12-State Booking Lifecycle & Transition Enforcement (FR-BKG-01..09, FR-CAN-01..03, FR-PAY-06)
+- **Context:** `contracts/openapi/booking.yaml` and `docs/SRS.md` specify 12 distinct lifecycle states (`REQUESTED`, `NEGOTIATING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `CONFIRMED`, `CANCELLED_BY_CUSTOMER`, `CANCELLED_BY_VENDOR`, `IN_PROGRESS`, `NO_SHOW`, `COMPLETED`, `DISPUTED`). Earlier service prototypes only tracked 4 legacy states.
+- **Decision:**
+  - Initial booking requests always start in `REQUESTED`.
+  - Database schema constraint `chk_booking_status` explicitly enforces all 12 contract states while maintaining backward-compatible string handling for legacy `PENDING` and `CANCELLED` aliases.
+  - All status transitions must pass strict state-machine transition validation in `src/modules/booking/stateMachine.js`, returning `409 INVALID_STATE_TRANSITION` on invalid transitions.
+  - Every transition transaction atomically writes to `booking_history` and emits an envelope-compliant CloudEvent (`envelope.schema.json`, `booking.events.yaml`).
+
+### ADR-017: Multi-Round Structured Counter-Offer Negotiation Protocol (FR-BKG-03)
+- **Context:** Customers and vendors need to negotiate pricing and terms before booking confirmation without breaking capacity holds or creating race conditions.
+- **Decision:**
+  - Counter-offers are stored in a dedicated `counter_offers` table with `proposed_by_role`, `amount_paise`, and `status`.
+  - Maximum negotiation depth is capped at 3 counter-offers per booking request (`FR-BKG-03`). The 4th counter-offer attempt is rejected with `400 VALIDATION_ERROR`.
+  - Each counter-offer has a mandatory 6-hour expiration timer (`expires_at = now() + 6 hours`).
+  - Opposing party can accept via `PATCH /bookings/:id/counter/:counterId/accept`, transitioning booking status to `ACCEPTED` and setting deposit payment due timer to 2 hours.
+
+### ADR-018: Tiered Cancellation Surcharge & Penalty Valuation Algorithm (SRS §2.4, FR-CAN-01..03)
+- **Context:** Cancellations require deterministic refund calculations and vendor penalties governed by `docs/SRS.md` Section 2.4.
+- **Decision:**
+  - `GET /bookings/:id/cancellation-quote` computes charges dynamically based on lead time before event:
+    - **Customer Cancellation:** Free cancellation if within 12h of confirmation and > 7 days to event. > 14 days: 0% charge, 100% refund. 7–14 days: 10% charge. 3–7 days: 25% charge. 1–3 days: 50% charge. < 24h: 100% charge (0% refund).
+    - **Vendor Cancellation:** Always 100% customer refund. Vendor penalty fee owed to platform: > 14 days: 20%. 7–14 days: 30%. 3–7 days: 50%. < 3 days: 100% penalty.
+  - All charges and refunds are calculated strictly in integer paise (`chargeAmountPaise`, `refundAmountPaise`, `vendorPenaltyPaise`).
+
+### ADR-019: Vendor GPS Check-In (Arrived State) & Fulfillment Verification (FR-BKG-07)
+- **Context:** To reduce disputes and verify physical vendor arrival at event locations, vendors must record a GPS-verified check-in.
+- **Decision:**
+  - `POST /bookings/:id/check-in` captures `latitude` and `longitude` with timestamp `check_in_at`.
+  - Transitions booking from `CONFIRMED` to `IN_PROGRESS` (vendor arrived).
+  - Emits `booking.in_progress` domain event to notify customer and downstream services.
+
+### ADR-020: Notify-Me Quota Management & Availability Alerting (FR-NOT-02)
+- **Context:** When vendors are unavailable or fully booked on requested dates, customers can subscribe to slot reopening alerts without overloading notification delivery systems.
+- **Decision:**
+  - Alerts are stored in `notify_requests` table with `target_date`, `status = ACTIVE`, and `expires_at = target_date 23:59:59`.
+  - Quota is strictly enforced at 3 active requests per customer per 24 hours (`FR-NOT-02`). Excess requests are rejected with `429 RATE_LIMIT_EXCEEDED`.
+
+### ADR-021: Web UI Dual-Mode Authentication & Strict Contract Schema Key Conformance
+- **Context:** The frontend React client communicates with `auth-service` via email and password for login/signup alongside 1-click demo buttons, while the OpenAPI contract test suite enforces strict schema properties for phone-and-OTP authentication.
+- **Decision:**
+  - `authController.login`: Dual identifier resolution. If the identifier contains `@`, resolves user by `email`; otherwise resolves by encrypted/hashed `phone`.
+  - `authController.register`: Dual validation. When `phone` is provided, enforces phone regex and valid OTP `verificationToken`. When `email` is provided from the Web UI without a phone number, synthesizes an internal deterministic phone hash to fulfill database constraints without requiring SMS OTP.
+  - Strict Schema Keys: `POST /v1/auth/register` returns strictly `{ id, name, role, accessToken, refreshToken, expiresIn }` and `POST /v1/auth/login` returns strictly `{ accessToken, refreshToken, expiresIn, user: { id, name, role } }` to preserve 100% conformance with OpenAPI `identity.yaml`. The frontend client enriches local auth state with the known email upon successful response.
+  - Development Pre-seeding: `inMemoryStore` seeds demo accounts (`customer@bookme.com`, `vendor@bookme.com`, `admin@bookme.com` with `password123`) when running outside `NODE_ENV=test` to ensure immediate 1-click demo logins work seamlessly.
+
+

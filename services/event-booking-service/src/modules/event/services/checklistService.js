@@ -1,5 +1,42 @@
 const checklistRepository = require('../repository/checklistRepository');
 const eventRepository = require('../repository/eventRepository');
+const { query } = require('../../../shared/db/pool');
+
+function formatChecklistItem(item, booking = null) {
+  let coverageStatus = 'NOT_COVERED';
+  let bookingId = null;
+
+  if (booking) {
+    bookingId = booking.id;
+    if (['CONFIRMED', 'IN_PROGRESS', 'COMPLETED'].includes(booking.status)) {
+      coverageStatus = 'BOOKED';
+    } else if (['REQUESTED', 'NEGOTIATING', 'ACCEPTED', 'PENDING'].includes(booking.status)) {
+      coverageStatus = 'REQUESTED';
+    }
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = !item.done && item.due_date && item.due_date < today;
+
+  return {
+    id: item.id,
+    eventId: item.event_id,
+    categoryId: item.category_id || item.categoryId || item.id,
+    categoryName: item.category || 'General',
+    quantity: Number(item.quantity || 1),
+    durationHours: Number(item.duration_hours || item.durationHours || 4),
+    brand: item.brand || null,
+    coverageStatus,
+    bookingId,
+    // Legacy fields for backward compatibility
+    task: item.task || `${item.category || 'General'} Requirement`,
+    category: item.category || 'General',
+    due_date: item.due_date,
+    done: Boolean(item.done),
+    is_overdue: isOverdue,
+    event_id: item.event_id,
+  };
+}
 
 class ChecklistService {
   async getChecklist(eventId, user) {
@@ -11,23 +48,27 @@ class ChecklistService {
       throw err;
     }
 
-    if (user.role !== 'admin' && event.customer_id !== user.id) {
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supportagent';
+    if (!isAdmin && event.customer_id !== user.id) {
       const err = new Error('Forbidden');
       err.status = 403;
       err.code = 'FORBIDDEN';
       throw err;
     }
 
-    const items = await checklistRepository.findByEventId(eventId);
-    const today = new Date().toISOString().split('T')[0];
+    const [items, bookingsRes] = await Promise.all([
+      checklistRepository.findByEventId(eventId),
+      query('SELECT id, event_item_id, status FROM bookings WHERE event_id = $1', [eventId]),
+    ]);
 
-    return items.map((item) => {
-      const isOverdue = !item.done && item.due_date && item.due_date < today;
-      return {
-        ...item,
-        is_overdue: isOverdue,
-      };
+    const bookingsByItem = new Map();
+    (bookingsRes.rows || []).forEach((b) => {
+      if (b.event_item_id) {
+        bookingsByItem.set(b.event_item_id, b);
+      }
     });
+
+    return items.map((item) => formatChecklistItem(item, bookingsByItem.get(item.id)));
   }
 
   async addItem(eventId, user, itemData) {
@@ -39,18 +80,31 @@ class ChecklistService {
       throw err;
     }
 
-    if (user.role !== 'admin' && event.customer_id !== user.id) {
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supportagent';
+    if (!isAdmin && event.customer_id !== user.id) {
       const err = new Error('Forbidden');
       err.status = 403;
       err.code = 'FORBIDDEN';
       throw err;
     }
 
-    const created = await checklistRepository.createItem(eventId, itemData);
-    return {
+    const taskText = itemData.task || `${itemData.categoryName || itemData.category || 'Service'} Requirement`;
+    const created = await checklistRepository.createItem(eventId, {
+      task: taskText,
+      category: itemData.categoryName || itemData.category || 'General',
+      due_date: itemData.due_date || null,
+      quantity: itemData.quantity || 1,
+      duration_hours: itemData.durationHours,
+      brand: itemData.brand,
+    });
+
+    return formatChecklistItem({
       ...created,
-      is_overdue: false,
-    };
+      categoryId: itemData.categoryId,
+      quantity: itemData.quantity || 1,
+      durationHours: itemData.durationHours,
+      brand: itemData.brand,
+    });
   }
 
   async updateItem(taskId, user, updateData) {
@@ -63,7 +117,8 @@ class ChecklistService {
     }
 
     const event = await eventRepository.findById(item.event_id);
-    if (user.role !== 'admin' && event && event.customer_id !== user.id) {
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supportagent';
+    if (!isAdmin && event && event.customer_id !== user.id) {
       const err = new Error('Forbidden');
       err.status = 403;
       err.code = 'FORBIDDEN';
@@ -71,13 +126,10 @@ class ChecklistService {
     }
 
     const updated = await checklistRepository.updateItem(taskId, updateData);
-    const today = new Date().toISOString().split('T')[0];
-    const isOverdue = !updated.done && updated.due_date && updated.due_date < today;
-
-    return {
+    return formatChecklistItem({
       ...updated,
-      is_overdue: isOverdue,
-    };
+      ...updateData,
+    });
   }
 
   async deleteItem(taskId, user) {
@@ -90,7 +142,8 @@ class ChecklistService {
     }
 
     const event = await eventRepository.findById(item.event_id);
-    if (user.role !== 'admin' && event && event.customer_id !== user.id) {
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supportagent';
+    if (!isAdmin && event && event.customer_id !== user.id) {
       const err = new Error('Forbidden');
       err.status = 403;
       err.code = 'FORBIDDEN';
@@ -98,7 +151,7 @@ class ChecklistService {
     }
 
     await checklistRepository.deleteItem(taskId);
-    return { success: true };
+    return true;
   }
 }
 

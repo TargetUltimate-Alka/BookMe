@@ -32,24 +32,42 @@ app.get('/health', (req, res) => {
   });
 });
 
+const v1HealthHandler = (req, res) => {
+  res.status(200).json({
+    status: 'UP',
+    service: 'event-booking-service',
+    timestamp: new Date().toISOString(),
+  });
+};
+app.get('/api/health', v1HealthHandler);
+app.get('/v1/health', v1HealthHandler);
+
 // 5. Mount module routes
-const { eventRouter, checklistItemRouter } = require('./modules/event/routes');
+const { eventRouter, checklistItemRouter, notifyRouter } = require('./modules/event/routes');
 const { bookingRouter, adminRouter, internalRouter } = require('./modules/booking/routes');
 
 app.use('/events', eventRouter);
 app.use('/api/events', eventRouter);
+app.use('/v1/events', eventRouter);
+
+app.use('/notify-me', notifyRouter);
+app.use('/api/notify-me', notifyRouter);
+app.use('/v1/notify-me', notifyRouter);
 
 app.use('/checklist', checklistItemRouter);
 app.use('/api/checklist', checklistItemRouter);
 
 app.use('/bookings', bookingRouter);
 app.use('/api/bookings', bookingRouter);
+app.use('/v1/bookings', bookingRouter);
 
 app.use('/admin', adminRouter);
 app.use('/api/admin', adminRouter);
+app.use('/v1/admin', adminRouter);
 
 app.use('/internal', internalRouter);
 app.use('/api/internal', internalRouter);
+app.use('/v1/internal', internalRouter);
 
 // Error handlers
 app.use(notFoundHandler);

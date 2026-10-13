@@ -11,40 +11,47 @@ async function processExpiries() {
   let client;
   try {
     client = await getClient();
-    // 1. Process Expired PENDING Bookings
+    // 1. Process Expired PENDING / REQUESTED Bookings
     const expiredPending = await bookingRepository.findExpiredPending(client);
     for (const booking of expiredPending) {
       try {
+        // Release hold with vendor
+        try {
+          await vendorClient.release(booking.vendor_id, booking.booking_date, booking.id);
+        } catch (rErr) {
+          logger.warn(`Error releasing hold for expired booking ${booking.id}: ${rErr.message}`);
+        }
+
         await client.query('BEGIN');
-        const reason = 'Expired - Vendor did not respond within 48h window';
+        const reason = 'Response window expired (vendor did not respond within required window)';
         const updated = await bookingRepository.updateStatus(
           booking.id,
-          'REJECTED',
+          'EXPIRED',
           { rejectionReason: reason },
           client
         );
         await historyRepository.recordTransition(
           booking.id,
-          'PENDING',
-          'REJECTED',
+          booking.status,
+          'EXPIRED',
           'SYSTEM',
           reason,
           client
         );
         await client.query('COMMIT');
-        logger.info(`Expired PENDING booking ${booking.id} transitioned to REJECTED.`);
-        await publisher.publishBookingRejected(updated, reason);
+        logger.info(`Expired booking ${booking.id} (${booking.status}) transitioned to EXPIRED.`);
+        await publisher.publishBookingExpired(updated, booking.status, reason);
       } catch (err) {
         await client.query('ROLLBACK');
-        logger.error(`Error expiring PENDING booking ${booking.id}: ${err.message}`);
+        logger.error(`Error expiring booking ${booking.id}: ${err.message}`);
       }
     }
 
-    // 2. Process Expired ACCEPTED Bookings (Payment window expired)
+    // 2. Process Expired ACCEPTED Bookings (Deposit payment window expired)
     const expiredAccepted = await bookingRepository.findExpiredAccepted(client);
     for (const booking of expiredAccepted) {
       try {
-        // Release date in vendor calendar
+        // Release hold in vendor calendar
         try {
           await vendorClient.release(booking.vendor_id, booking.booking_date, booking.id);
         } catch (rErr) {
@@ -52,10 +59,10 @@ async function processExpiries() {
         }
 
         await client.query('BEGIN');
-        const reason = 'Payment window expired (24h elapsed without completed payment)';
+        const reason = 'Deposit payment window expired (2 hours elapsed without payment)';
         const updated = await bookingRepository.updateStatus(
           booking.id,
-          'CANCELLED',
+          'EXPIRED',
           {
             cancellationReason: reason,
             cancelledBy: 'SYSTEM',
@@ -65,14 +72,14 @@ async function processExpiries() {
         await historyRepository.recordTransition(
           booking.id,
           'ACCEPTED',
-          'CANCELLED',
+          'EXPIRED',
           'SYSTEM',
           reason,
           client
         );
         await client.query('COMMIT');
-        logger.info(`Expired ACCEPTED booking ${booking.id} transitioned to CANCELLED.`);
-        await publisher.publishBookingCancelled(updated, reason, 'SYSTEM', 'ACCEPTED');
+        logger.info(`Expired ACCEPTED booking ${booking.id} transitioned to EXPIRED.`);
+        await publisher.publishBookingExpired(updated, 'ACCEPTED', reason);
       } catch (err) {
         await client.query('ROLLBACK');
         logger.error(`Error expiring ACCEPTED booking ${booking.id}: ${err.message}`);
