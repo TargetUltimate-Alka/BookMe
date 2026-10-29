@@ -48,6 +48,11 @@ describe('BookMe SRS Vendor Module Comprehensive Verification Suite', () => {
 
   before(async () => {
     await initDb();
+    const db = require('../src/shared/db');
+    if (db.isPgActive()) {
+      await db.query(`DELETE FROM vendors WHERE user_id = $1`, ['usr_test_vendor_1']);
+      await db.query(`DELETE FROM notify_requests WHERE user_id = $1`, ['usr_customer_1']);
+    }
     await new Promise((resolve) => {
       server = http.createServer(app);
       server.listen(0, '127.0.0.1', () => {

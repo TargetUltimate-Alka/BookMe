@@ -6,8 +6,11 @@ const connectionString =
 
 const pool = new Pool({
   connectionString,
-  connectionTimeoutMillis: 400,
+  connectionTimeoutMillis: 5000,
+  max: 50,
 });
+
+const originalPoolConnect = pool.connect.bind(pool);
 
 let isPgAvailable = null; // null = untested, true = connected, false = fallback
 
@@ -56,7 +59,7 @@ async function query(text, params = []) {
 async function getClient() {
   if (isPgAvailable !== false && process.env.FORCE_IN_MEMORY_DB !== 'true') {
     try {
-      const client = await pool.connect();
+      const client = await originalPoolConnect();
       isPgAvailable = true;
       return client;
     } catch (err) {
@@ -98,7 +101,6 @@ async function withTransaction(fn) {
   }
 }
 
-const originalPoolConnect = pool.connect.bind(pool);
 pool.connect = async function wrappedConnect(...args) {
   if (args.length > 0) {
     return originalPoolConnect(...args);

@@ -5,7 +5,12 @@ const { getConfigValue, enqueueOutboxEvent } = require('../../vendor/repository/
 
 function normalizeDateStr(d) {
   if (!d) return null;
-  if (d instanceof Date) return d.toISOString().split('T')[0];
+  if (d instanceof Date) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
   return String(d).split('T')[0];
 }
 
@@ -934,6 +939,18 @@ async function releaseCapacity({
         targetVendorId = r.vendor_id;
         wasBooked = r.status === 'BOOKED';
         await client.query(`UPDATE capacity_reservations SET status = 'RELEASED', updated_at = NOW() WHERE id = $1`, [r.id]);
+      } else if (targetPackageId && targetDate && targetSlot) {
+        const activeRes = await client.query(
+          `SELECT * FROM capacity_reservations
+           WHERE package_id = $1 AND avail_date = $2 AND slot_name = $3 AND status = 'HELD'
+           ORDER BY created_at ASC LIMIT 1`,
+          [targetPackageId, targetDate, targetSlot]
+        );
+        if (activeRes.rows.length > 0) {
+          const r = activeRes.rows[0];
+          wasBooked = r.status === 'BOOKED';
+          await client.query(`UPDATE capacity_reservations SET status = 'RELEASED', updated_at = NOW() WHERE id = $1`, [r.id]);
+        }
       }
     }
 
@@ -950,6 +967,15 @@ async function releaseCapacity({
       [targetQty, targetPackageId, targetDate, targetSlot]
     );
 
+    let availRow = upd.rows[0];
+    if (!availRow) {
+      const checkRes = await client.query(
+        `SELECT * FROM package_availability WHERE package_id = $1 AND avail_date = $2 AND slot_name = $3`,
+        [targetPackageId, targetDate, targetSlot]
+      );
+      availRow = checkRes.rows[0];
+    }
+
     await triggerNotifyRequestsForVendorDate(targetVendorId, targetDate, targetPackageId);
 
     return {
@@ -959,7 +985,7 @@ async function releaseCapacity({
       date: targetDate,
       slotName: targetSlot,
       quantity: targetQty,
-      availability: upd.rows[0] ? mapPackageAvailRow(upd.rows[0]) : null,
+      availability: availRow ? mapPackageAvailRow(availRow) : null,
     };
   });
 }

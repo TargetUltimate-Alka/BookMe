@@ -103,9 +103,9 @@ async function recordStatusHistory(vendorId, fromStatus, toStatus, reason, chang
   }
 
   await db.query(
-    `INSERT INTO vendor_status_history (id, vendor_id, from_status, to_status, reason, changed_by, changed_by_role)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [entry.id, entry.vendor_id, entry.from_status, entry.to_status, entry.reason, entry.changed_by, entry.changed_by_role]
+    `INSERT INTO vendor_status_history (id, vendor_id, from_status, to_status, old_status, new_status, reason, changed_by, changed_by_role)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [entry.id, entry.vendor_id, entry.from_status, entry.to_status, entry.from_status, entry.to_status, entry.reason, entry.changed_by, entry.changed_by_role]
   );
   return entry;
 }
@@ -251,7 +251,7 @@ async function createVendor(payload) {
     rowObj.latitude,
     rowObj.longitude,
     rowObj.service_radius_km,
-    JSON.stringify(rowObj.service_areas),
+    Array.isArray(rowObj.service_areas) ? rowObj.service_areas : [],
     rowObj.verified,
     rowObj.kyc_status,
     rowObj.agreement_version,
@@ -364,7 +364,7 @@ async function updateVendor(id, updateFields) {
   }
   if (updateFields.serviceAreas !== undefined) {
     setClauses.push(`service_areas = $${paramIndex++}`);
-    values.push(JSON.stringify(updateFields.serviceAreas));
+    values.push(Array.isArray(updateFields.serviceAreas) ? updateFields.serviceAreas : []);
   }
 
   if (setClauses.length > 0) {
