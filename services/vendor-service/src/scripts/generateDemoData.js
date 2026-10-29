@@ -1,3 +1,4 @@
+require('dotenv').config();
 const db = require('../shared/db');
 const inMemoryStore = require('../shared/inMemoryStore');
 const { SERVICE_CATEGORIES } = require('../shared/constants/categoriesData');
@@ -77,6 +78,35 @@ async function generateDemoData(options = {}) {
   let totalAddedServices = 0;
   let totalAddedPackages = 0;
   let pgSeeded = false;
+
+  try {
+    await db.query('SELECT 1');
+  } catch (err) {
+    // in-memory fallback
+  }
+
+  if (db.isPgActive()) {
+    for (const cat of SERVICE_CATEGORIES) {
+      await db.query(
+        `INSERT INTO categories (id, name, slug, parent_id, is_regulated, compliance_note, default_hsn_sac, default_gst_rate_percent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           slug = EXCLUDED.slug,
+           parent_id = EXCLUDED.parent_id`,
+        [
+          cat.id,
+          cat.name,
+          cat.slug,
+          cat.parentId || null,
+          cat.isRegulated || false,
+          cat.complianceNote || null,
+          cat.defaultHsnSac || '998596',
+          cat.defaultGstRatePercent || 18.0,
+        ]
+      );
+    }
+  }
 
   const totalBatches = Math.ceil(targetCount / batchSize);
 
@@ -230,9 +260,16 @@ async function generateDemoData(options = {}) {
              ON CONFLICT (id) DO NOTHING`,
             [
               v.id, v.user_id, v.business_name, v.category, v.description, v.location, v.address,
-              v.latitude, v.longitude, v.service_radius_km, JSON.stringify(v.service_areas),
+              v.latitude, v.longitude, v.service_radius_km, Array.isArray(v.service_areas) ? v.service_areas : [],
               v.verified, v.kyc_status, v.is_demo, v.rating, v.review_count, v.preferred_language,
             ]
+          );
+
+          await client.query(
+            `INSERT INTO vendor_categories (vendor_id, category_id, is_primary)
+             VALUES ($1, $2, TRUE)
+             ON CONFLICT (vendor_id, category_id) DO NOTHING`,
+            [v.id, v.category_id]
           );
         }
 
@@ -258,7 +295,7 @@ async function generateDemoData(options = {}) {
              ON CONFLICT (id) DO NOTHING`,
             [
               p.id, p.vendor_id, p.category_id, p.name, p.tier, p.description,
-              JSON.stringify(p.service_ids), p.price, p.base_price_paise.toString(),
+              Array.isArray(p.service_ids) ? p.service_ids : [], p.price, p.base_price_paise.toString(),
               p.price_unit, p.min_guests, p.max_guests, p.duration_hours,
               p.overtime_rate_paise.toString(), p.total_capacity_units,
               p.security_deposit_paise.toString(), p.gst_rate_bps, p.hsn_sac_code,

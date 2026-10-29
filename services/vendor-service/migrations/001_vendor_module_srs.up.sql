@@ -228,6 +228,7 @@ CREATE TABLE IF NOT EXISTS services (
 
 ALTER TABLE services ADD COLUMN IF NOT EXISTS base_price_paise BIGINT DEFAULT 0;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS category_id VARCHAR(80);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- 6. Packages Table with Tiers, Integer Paise, GST, HSN/SAC & Security Deposit (FR-VEN-03, FR-VEN-09, FR-VEN-11)
 CREATE TABLE IF NOT EXISTS packages (
