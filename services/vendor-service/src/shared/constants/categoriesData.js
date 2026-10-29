@@ -37,7 +37,7 @@ const PARENT_CATEGORIES = [
   {
     id: 'cat_parent_music',
     name: 'Music and entertainment',
-    slug: 'dj',
+    slug: 'music',
     parentId: null,
     isRegulated: false,
     complianceNote: null,

@@ -47,10 +47,12 @@ CREATE TABLE IF NOT EXISTS vendors (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS service_location JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS city VARCHAR(120);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS state VARCHAR(120);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS service_radius_km INTEGER NOT NULL DEFAULT 25;
@@ -72,10 +74,16 @@ ALTER TABLE vendors ADD COLUMN IF NOT EXISTS bank_masked VARCHAR(40);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS agreement_version VARCHAR(30);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS agreement_signed_at TIMESTAMPTZ;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS agreement_signer_ip VARCHAR(64);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS agreement_ip VARCHAR(64);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS enforcement_status VARCHAR(30) NOT NULL DEFAULT 'NONE';
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS response_score INTEGER NOT NULL DEFAULT 100;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS total_reviews INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS featured_rank INTEGER;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS violation_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) NOT NULL DEFAULT 'en';
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS wallet_balance_paise BIGINT NOT NULL DEFAULT 100000;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS wallet_grace_expires_at TIMESTAMPTZ;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -96,9 +104,12 @@ END $$;
 CREATE TABLE IF NOT EXISTS vendor_categories (
   vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
   category_id VARCHAR(80) NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (vendor_id, category_id)
 );
+
+ALTER TABLE vendor_categories ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_vendor_categories_cat ON vendor_categories(category_id);
 
@@ -106,14 +117,102 @@ CREATE INDEX IF NOT EXISTS idx_vendor_categories_cat ON vendor_categories(catego
 CREATE TABLE IF NOT EXISTS vendor_status_history (
   id VARCHAR(80) PRIMARY KEY,
   vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  from_status VARCHAR(30),
+  to_status VARCHAR(30),
   old_status VARCHAR(30),
-  new_status VARCHAR(30) NOT NULL,
+  new_status VARCHAR(30),
   changed_by VARCHAR(80) NOT NULL,
+  changed_by_role VARCHAR(40) DEFAULT 'system',
   reason TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE vendor_status_history ADD COLUMN IF NOT EXISTS from_status VARCHAR(30);
+ALTER TABLE vendor_status_history ADD COLUMN IF NOT EXISTS to_status VARCHAR(30);
+ALTER TABLE vendor_status_history ADD COLUMN IF NOT EXISTS old_status VARCHAR(30);
+ALTER TABLE vendor_status_history ADD COLUMN IF NOT EXISTS new_status VARCHAR(30);
+ALTER TABLE vendor_status_history ADD COLUMN IF NOT EXISTS changed_by_role VARCHAR(40) DEFAULT 'system';
+ALTER TABLE vendor_status_history ALTER COLUMN new_status DROP NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_vendor_status_history_vendor ON vendor_status_history(vendor_id, created_at DESC);
+
+-- 4b. Vendor KYC Records (FR-ONB-03, NFR-SEC-05)
+CREATE TABLE IF NOT EXISTS vendor_kyc_records (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) UNIQUE NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  digilocker_ref_enc TEXT,
+  aadhaar_last4 VARCHAR(10),
+  verified_name VARCHAR(255),
+  digilocker_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  consent_given BOOLEAN NOT NULL DEFAULT FALSE,
+  consent_timestamp TIMESTAMPTZ,
+  pan_masked VARCHAR(20),
+  pan_ref_enc TEXT,
+  pan_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  bank_account_masked VARCHAR(40),
+  bank_ifsc VARCHAR(20),
+  bank_ref_enc TEXT,
+  bank_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  verification_notes TEXT,
+  verified_by VARCHAR(80),
+  verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE vendor_kyc_records ADD COLUMN IF NOT EXISTS verification_notes TEXT;
+ALTER TABLE vendor_kyc_records ADD COLUMN IF NOT EXISTS verified_by VARCHAR(80);
+ALTER TABLE vendor_kyc_records ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_vendor_kyc_vendor ON vendor_kyc_records(vendor_id);
+
+-- 4c. Vendor Agreements (FR-ONB-04)
+CREATE TABLE IF NOT EXISTS vendor_agreements (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  agreement_version VARCHAR(30) NOT NULL,
+  document_hash VARCHAR(128),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  signed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_agreements_vendor ON vendor_agreements(vendor_id);
+
+-- 4d. Vendor Off-Platform Violations & Enforcement (FR-ADM-04)
+CREATE TABLE IF NOT EXISTS vendor_violations (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  violation_type VARCHAR(60) NOT NULL,
+  action_taken VARCHAR(40) NOT NULL,
+  reason TEXT NOT NULL,
+  booking_id VARCHAR(80),
+  recorded_by VARCHAR(80) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_violations_vendor ON vendor_violations(vendor_id);
+
+-- 4e. Vendor Wallets & Transactions (FR-WAL-01..04)
+CREATE TABLE IF NOT EXISTS vendor_wallets (
+  vendor_id VARCHAR(80) PRIMARY KEY REFERENCES vendors(id) ON DELETE CASCADE,
+  balance_paise BIGINT NOT NULL DEFAULT 0,
+  status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  txn_type VARCHAR(40) NOT NULL,
+  amount_paise BIGINT NOT NULL,
+  balance_after_paise BIGINT NOT NULL,
+  reference_id VARCHAR(80),
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_tx_vendor ON wallet_transactions(vendor_id, created_at DESC);
 
 -- 5. Legacy Services Table (preserved for V1 backward compatibility)
 CREATE TABLE IF NOT EXISTS services (
@@ -163,6 +262,12 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS security_deposit_paise BIGINT NOT 
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS gst_rate_percent NUMERIC(5, 2) NOT NULL DEFAULT 18.00;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS hsn_sac_code VARCHAR(20) NOT NULL DEFAULT '998596';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS price_unit VARCHAR(30) DEFAULT 'per_day';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS min_guests INTEGER DEFAULT 1;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS max_guests INTEGER DEFAULT 500;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS gst_rate_bps INTEGER DEFAULT 1800;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS total_capacity_units INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS cancellation_policy VARCHAR(40) DEFAULT 'MODERATE';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'DRAFT'
   CHECK (status IN ('DRAFT', 'PUBLISHED', 'ARCHIVED'));
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS compliance_acknowledged BOOLEAN NOT NULL DEFAULT FALSE;
@@ -185,6 +290,10 @@ CREATE TABLE IF NOT EXISTS package_addons (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE package_addons ADD COLUMN IF NOT EXISTS price_unit VARCHAR(40) DEFAULT 'per_unit';
+ALTER TABLE package_addons ADD COLUMN IF NOT EXISTS max_qty INTEGER DEFAULT 10;
+ALTER TABLE package_addons ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
 CREATE INDEX IF NOT EXISTS idx_package_addons_pkg ON package_addons(package_id);
 
 -- 8. Discounts Table (FR-VEN-05)
@@ -204,6 +313,26 @@ CREATE TABLE IF NOT EXISTS discounts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_discounts_vendor_dates ON discounts(vendor_id, start_date, end_date);
+
+CREATE TABLE IF NOT EXISTS package_discounts (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  package_id VARCHAR(80) REFERENCES packages(id) ON DELETE CASCADE,
+  name VARCHAR(255),
+  discount_type VARCHAR(20) NOT NULL,
+  discount_value NUMERIC(12, 2) NOT NULL,
+  min_order_paise BIGINT NOT NULL DEFAULT 0,
+  promo_code VARCHAR(60),
+  start_date DATE,
+  end_date DATE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE package_discounts ALTER COLUMN start_date DROP NOT NULL;
+ALTER TABLE package_discounts ALTER COLUMN end_date DROP NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_pkg_discounts_vendor ON package_discounts(vendor_id);
 
 -- 9. Media Assets & Moderation Queue Table (FR-VEN-02)
 CREATE TABLE IF NOT EXISTS media_assets (
@@ -226,6 +355,31 @@ CREATE TABLE IF NOT EXISTS media_assets (
 
 CREATE INDEX IF NOT EXISTS idx_media_assets_vendor_pkg ON media_assets(vendor_id, package_id, status);
 CREATE INDEX IF NOT EXISTS idx_media_assets_sha256 ON media_assets(sha256_checksum);
+
+CREATE TABLE IF NOT EXISTS vendor_media (
+  id VARCHAR(80) PRIMARY KEY,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  package_id VARCHAR(80) REFERENCES packages(id) ON DELETE SET NULL,
+  media_type VARCHAR(20) NOT NULL,
+  mime_type VARCHAR(60) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_size_bytes INTEGER NOT NULL,
+  duration_seconds NUMERIC(5, 2),
+  content_hash_sha256 VARCHAR(64) NOT NULL,
+  storage_key TEXT,
+  storage_url TEXT NOT NULL,
+  moderation_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+  rejection_reason TEXT,
+  moderation_notes TEXT,
+  moderated_by VARCHAR(80),
+  moderated_at TIMESTAMPTZ,
+  is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  caption TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_media_vendor ON vendor_media(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_vendor_media_hash ON vendor_media(content_hash_sha256);
 
 -- 10. Package Availability & Capacity Table (FR-VEN-06, FR-VEN-07, SRS §11.4)
 CREATE TABLE IF NOT EXISTS availability (
@@ -274,6 +428,43 @@ CREATE TABLE IF NOT EXISTS capacity_holds (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS package_availability (
+  id VARCHAR(80) PRIMARY KEY,
+  package_id VARCHAR(80) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  avail_date DATE NOT NULL,
+  slot_name VARCHAR(40) NOT NULL DEFAULT 'ALL_DAY',
+  total_units INTEGER NOT NULL DEFAULT 1,
+  held_units INTEGER NOT NULL DEFAULT 0,
+  booked_units INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(30) NOT NULL DEFAULT 'AVAILABLE',
+  reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_package_date_slot UNIQUE (package_id, avail_date, slot_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pkg_avail_lookup ON package_availability(package_id, avail_date, slot_name);
+CREATE INDEX IF NOT EXISTS idx_pkg_avail_vendor_date ON package_availability(vendor_id, avail_date);
+
+CREATE TABLE IF NOT EXISTS capacity_reservations (
+  id VARCHAR(80) PRIMARY KEY,
+  booking_id VARCHAR(80),
+  vendor_id VARCHAR(80) NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  package_id VARCHAR(80) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  avail_date DATE NOT NULL,
+  slot_name VARCHAR(40) NOT NULL DEFAULT 'ALL_DAY',
+  quantity INTEGER NOT NULL DEFAULT 1,
+  status VARCHAR(30) NOT NULL DEFAULT 'HELD',
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE capacity_reservations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_cap_res_booking ON capacity_reservations(booking_id);
+
 -- 11. Vendor Wallet & Append-Only Ledger (FR-WAL-01..05, SRS §11.4)
 CREATE TABLE IF NOT EXISTS wallet_ledger (
   id VARCHAR(80) PRIMARY KEY,
@@ -291,21 +482,37 @@ CREATE INDEX IF NOT EXISTS idx_wallet_ledger_vendor ON wallet_ledger(vendor_id, 
 -- 12. Notify-Me Requests (FR-SRCH-05, FR-NOT-02)
 CREATE TABLE IF NOT EXISTS notify_requests (
   id VARCHAR(80) PRIMARY KEY,
-  customer_id VARCHAR(80) NOT NULL,
+  customer_id VARCHAR(80),
+  user_id VARCHAR(80),
   vendor_id VARCHAR(80) REFERENCES vendors(id) ON DELETE CASCADE,
   package_id VARCHAR(80) REFERENCES packages(id) ON DELETE CASCADE,
   category_id VARCHAR(80) REFERENCES categories(id) ON DELETE SET NULL,
   event_item_id VARCHAR(80),
-  event_date DATE NOT NULL,
-  status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'NOTIFIED', 'CANCELLED', 'EXPIRED')),
+  event_date DATE,
+  requested_date DATE,
+  slot_name VARCHAR(40) DEFAULT 'ALL_DAY',
+  required_qty INTEGER DEFAULT 1,
+  status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
   notifications_sent_today INTEGER NOT NULL DEFAULT 0,
   last_notified_date DATE,
+  notified_at TIMESTAMPTZ,
   disclaimer_text TEXT NOT NULL DEFAULT 'Notice: Capacity opening notification does not reserve availability. First confirmed booking secures the slot.',
-  expires_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE notify_requests ADD COLUMN IF NOT EXISTS user_id VARCHAR(80);
+ALTER TABLE notify_requests ADD COLUMN IF NOT EXISTS requested_date DATE;
+ALTER TABLE notify_requests ADD COLUMN IF NOT EXISTS slot_name VARCHAR(40) DEFAULT 'ALL_DAY';
+ALTER TABLE notify_requests ADD COLUMN IF NOT EXISTS required_qty INTEGER DEFAULT 1;
+ALTER TABLE notify_requests ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+ALTER TABLE notify_requests ALTER COLUMN customer_id DROP NOT NULL;
+ALTER TABLE notify_requests ALTER COLUMN event_date DROP NOT NULL;
+ALTER TABLE notify_requests ALTER COLUMN expires_at DROP NOT NULL;
+ALTER TABLE notify_requests DROP CONSTRAINT IF EXISTS notify_requests_status_check;
+
 CREATE INDEX IF NOT EXISTS idx_notify_requests_lookup ON notify_requests(status, event_date, package_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_notify_requests_user ON notify_requests(user_id, status);
 
 -- 13. Dynamic Admin CONFIG Table & Change History (FR-ADM-03, SRS §2.3)
 CREATE TABLE IF NOT EXISTS configs (
