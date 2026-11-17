@@ -2,12 +2,6 @@
 
 AI-powered multi-vendor event service booking platform.
 
-## 🎓 Viva & Technical Defense Report
-- 📄 **[Download / View Viva Defense Report (PDF)](./BookMe_Viva_Project_Report_Nandini.pdf)**
-- **Candidate:** Nandini Kanaujiya (Roll: 61, MCA 3rd Semester, IIIT Vadodara)
-- **Module Owned:** Vendor Microservice (services/vendor-service) & Frontend Vendor OS (rontend/src/features/vendor)
-- **Key Deliverables:** 60 Categories Taxonomy, Zero-Raw-Aadhaar DPDP Compliance, 64-bit Integer Paise & GST Engine, Atomic Calendar Availability (50-request concurrency verified), SHA-256 Media Deduplication.
-
 ## Structure
 - `frontend/` - React app, one feature folder per owner
 - `services/` - 5 independent Node/Express microservices (auth, vendor, event-booking, payment-feedback, admin)
