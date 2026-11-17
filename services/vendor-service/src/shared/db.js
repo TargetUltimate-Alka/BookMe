@@ -30,6 +30,8 @@ async function query(text, params = []) {
         err.code === 'ENOTFOUND' ||
         err.code === '28P01' ||
         err.code === '3D000' ||
+        err.code === 'EACCES' ||
+        err.name === 'AggregateError' ||
         (err.message &&
           (err.message.includes('ECONNREFUSED') ||
             err.message.includes('connect') ||
