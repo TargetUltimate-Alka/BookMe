@@ -2,6 +2,12 @@
 
 AI-powered multi-vendor event service booking platform.
 
+## Documentation & Architecture
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)**: Full System Architecture Document (C4 Container Diagram, Microservices Topology, Atomic Concurrency Engine, DPDP & KYC Security, 64-Bit Integer Paise Financial Engine, and RabbitMQ Event Bus).
+- `docs/DECISIONS.md`: Architectural Decision Records (ADRs).
+- `docs/SRS.md`: Software Requirements Specification.
+- `docs/BookMe_Repo_Maintenance_Guide.md`: Ownership, conventions, and team workflow.
+
 ## Structure
 - `frontend/` - React app, one feature folder per owner
 - `services/` - 5 independent Node/Express microservices (auth, vendor, event-booking, payment-feedback, admin)
