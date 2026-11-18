@@ -1,0 +1,20 @@
+{
+  "name": "bookme-platform",
+  "version": "1.0.0",
+  "description": "BookMe - AI-powered multi-vendor event service booking platform (Microservices)",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "services/*"
+  ],
+  "scripts": {
+    "start": "run-all.bat",
+    "dev": "run-all.bat",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:auth": "cd services/auth-service && npm start",
+    "dev:vendor": "cd services/vendor-service && npm start",
+    "dev:booking": "cd services/event-booking-service && npm start",
+    "dev:payment": "cd services/payment-feedback-service && npm start",
+    "dev:admin": "cd services/admin-service && npm start"
+  }
+}
